@@ -63,6 +63,20 @@ export type TypoCorrection = {
 	style: "edit" | "message" | "mixed";
 };
 
+export type BehaviorDebug = {
+	typoChance: number;
+	typoApplied: boolean;
+	swapChance: number;
+	swapApplied: boolean;
+	burstChance: number;
+	burstApplied: boolean;
+	hesitationChance: number;
+	hesitationApplied: boolean;
+	forgetChance: number;
+	sleepMode: string | null;
+	fatigueMultiplier: number;
+};
+
 export type DebugStats = {
 	promptTokens: number;
 	completionTokens: number;
@@ -74,6 +88,7 @@ export type DebugStats = {
 	classificationConfidence: number;
 	messageValence: number;
 	messageArousal: number;
+	behavior?: BehaviorDebug;
 };
 
 export type RespondCommand = {

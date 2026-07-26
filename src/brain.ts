@@ -314,6 +314,19 @@ export class Brain {
 					classificationConfidence: result.debugClassificationConfidence ?? 0,
 					messageValence: result.valence,
 					messageArousal: result.arousal,
+					behavior: {
+						typoChance: this.config.typo_chance,
+						typoApplied: false,
+						swapChance: this.config.letter_swap_chance,
+						swapApplied: false,
+						burstChance: this.config.burst_chance,
+						burstApplied: false,
+						hesitationChance: this.config.hesitation_chance,
+						hesitationApplied: false,
+						forgetChance: this.config.forget_chance,
+						sleepMode: sleepBehavior,
+						fatigueMultiplier,
+					},
 				};
 			}
 		} catch (err) {
@@ -332,10 +345,14 @@ export class Brain {
 
 		let processedText = responseText;
 
+		let typoApplied = false;
+		let swapApplied = false;
+
 		if (Math.random() < this.config.typo_chance) {
 			const result = applyTypo(processedText, this.config.typo_layout);
 			if (result) {
 				processedText = result.text;
+				typoApplied = true;
 			}
 		}
 
@@ -343,7 +360,15 @@ export class Brain {
 			const result = applyLetterSwap(processedText);
 			if (result) {
 				processedText = result.text;
+				swapApplied = true;
 			}
+		}
+
+		if (debugStats?.behavior) {
+			debugStats.behavior.typoApplied = typoApplied;
+			debugStats.behavior.swapApplied = swapApplied;
+			debugStats.behavior.hesitationApplied = willHesitate;
+			debugStats.behavior.burstApplied = burst;
 		}
 
 		const respondCommand: RespondCommand = {
