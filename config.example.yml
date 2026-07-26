@@ -109,6 +109,9 @@ topic_fatigue_threshold: 3
 topic_fatigue_delay_multiplier: 2
 topic_fatigue_ignore_bonus: 0.15
 
+# --- Voix ---
+voice_message_chance: 0.12
+
 # --- Typos ---
 typo_chance: 0.06
 typo_layout: "azerty"

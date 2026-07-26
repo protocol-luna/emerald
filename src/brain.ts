@@ -293,6 +293,8 @@ export class Brain {
 			? planBurst(this.config.burst_delay_min, this.config.burst_delay_max)
 			: undefined;
 
+		const willVoice = Math.random() < this.config.voice_message_chance;
+
 		const replyStyle = this.pickReplyStyle(false);
 
 		const sessionId = `${event.client}:${event.channel}`;
@@ -327,6 +329,8 @@ export class Brain {
 						hesitationChance: this.config.hesitation_chance,
 						hesitationApplied: false,
 						forgetChance: this.config.forget_chance,
+						voiceChance: this.config.voice_message_chance,
+						voiceApplied: false,
 						sleepMode: sleepBehavior,
 						fatigueMultiplier,
 					},
@@ -372,6 +376,7 @@ export class Brain {
 			debugStats.behavior.swapApplied = swapApplied;
 			debugStats.behavior.hesitationApplied = willHesitate;
 			debugStats.behavior.burstApplied = burst;
+			debugStats.behavior.voiceApplied = willVoice;
 		}
 
 		const respondCommand: RespondCommand = {
@@ -386,6 +391,7 @@ export class Brain {
 			hesitationWord,
 			burstPlan: burstPlan ?? undefined,
 			react: reactPlan,
+			voice: willVoice || undefined,
 			sessionId,
 			debugStats,
 		};

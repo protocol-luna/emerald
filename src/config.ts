@@ -62,6 +62,7 @@ export type EmeraldConfig = {
 	typo_correction_style: "edit" | "message" | "mixed";
 
 	letter_swap_chance: number;
+	voice_message_chance: number;
 
 	inactivity_warmup_minutes: number;
 	inactivity_warmup_multiplier: number;
@@ -193,6 +194,7 @@ export const DEFAULT_CONFIG: EmeraldConfig = {
 	typo_correction_style: "mixed",
 
 	letter_swap_chance: 0.04,
+	voice_message_chance: 0.12,
 
 	inactivity_warmup_minutes: 10,
 	inactivity_warmup_multiplier: 2,

@@ -73,6 +73,8 @@ export type BehaviorDebug = {
 	hesitationChance: number;
 	hesitationApplied: boolean;
 	forgetChance: number;
+	voiceChance: number;
+	voiceApplied: boolean;
 	sleepMode: string | null;
 	fatigueMultiplier: number;
 };
@@ -105,6 +107,7 @@ export type RespondCommand = {
 	typoCorrection?: TypoCorrection;
 	letterSwap?: { original: string; corrected: string; delay: number };
 	react?: ReactionPlan;
+	voice?: boolean;
 	sessionId?: string;
 	debugStats?: DebugStats;
 };
