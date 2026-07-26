@@ -11,6 +11,7 @@ export type MessageEvent = {
 	timestamp: number;
 	isDM: boolean;
 	mentions?: string[];
+	debug?: boolean;
 };
 
 export type ReadyEvent = {
@@ -62,6 +63,19 @@ export type TypoCorrection = {
 	style: "edit" | "message" | "mixed";
 };
 
+export type DebugStats = {
+	promptTokens: number;
+	completionTokens: number;
+	timeMs: number;
+	tokensPerSecond: number;
+	emotionStateValence: number;
+	emotionStateArousal: number;
+	classificationLabel: string;
+	classificationConfidence: number;
+	messageValence: number;
+	messageArousal: number;
+};
+
 export type RespondCommand = {
 	type: "respond";
 	id: string;
@@ -77,6 +91,7 @@ export type RespondCommand = {
 	letterSwap?: { original: string; corrected: string; delay: number };
 	react?: ReactionPlan;
 	sessionId?: string;
+	debugStats?: DebugStats;
 };
 
 export type TypingCommand = {

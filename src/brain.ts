@@ -12,6 +12,7 @@ import { evaluateSleep } from "./behavior/sleep";
 import { applyLetterSwap, applyTypo } from "./behavior/typo";
 import type { EmeraldConfig } from "./config";
 import type {
+	DebugStats,
 	InEvent,
 	MessageEvent,
 	OutCommand,
@@ -295,10 +296,26 @@ export class Brain {
 		const replyStyle = this.pickReplyStyle(false);
 
 		const sessionId = `${event.client}:${event.channel}`;
+		const debugMode = event.debug ?? false;
 		let responseText = "";
+		let debugStats: DebugStats | undefined;
 		try {
-			const raw = await this.sapphire.ask(event.text, sessionId);
-			responseText = raw.replace(/^[^:]+:\s*/, "");
+			const result = await this.sapphire.ask(event.text, sessionId, debugMode);
+			responseText = result.text.replace(/^[^:]+:\s*/, "");
+			if (debugMode && result.debugPromptTokens !== undefined) {
+				debugStats = {
+					promptTokens: result.debugPromptTokens,
+					completionTokens: result.debugCompletionTokens ?? 0,
+					timeMs: result.debugTimeMs ?? 0,
+					tokensPerSecond: result.debugTokensPerSecond ?? 0,
+					emotionStateValence: result.debugEmotionStateValence ?? 0,
+					emotionStateArousal: result.debugEmotionStateArousal ?? 0,
+					classificationLabel: result.label,
+					classificationConfidence: result.debugClassificationConfidence ?? 0,
+					messageValence: result.valence,
+					messageArousal: result.arousal,
+				};
+			}
 		} catch (err) {
 			console.error(`[Brain] Sapphire error for ${event.id}:`, err);
 			return [
@@ -342,6 +359,7 @@ export class Brain {
 			burstPlan: burstPlan ?? undefined,
 			react: reactPlan,
 			sessionId,
+			debugStats,
 		};
 		commands.push(respondCommand);
 
