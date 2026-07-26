@@ -114,14 +114,17 @@ export class Brain {
 
 	private emitSpontaneous(_client: string) {}
 
-	async handleEvent(event: InEvent): Promise<Decision[]> {
+	async handleEvent(
+		event: InEvent,
+		sendCommand?: (cmd: OutCommand) => void,
+	): Promise<Decision[]> {
 		switch (event.type) {
 			case "ready":
 				this.registerClient(event.client, event.userId, event.username);
 				return [];
 
 			case "message":
-				return await this.handleMessage(event);
+				return await this.handleMessage(event, sendCommand);
 
 			case "bot_message":
 				this.state.markBotActivity(event.channel);
@@ -141,7 +144,10 @@ export class Brain {
 		}
 	}
 
-	private async handleMessage(event: MessageEvent): Promise<Decision[]> {
+	private async handleMessage(
+		event: MessageEvent,
+		sendCommand?: (cmd: OutCommand) => void,
+	): Promise<Decision[]> {
 		const botUser = this.botUsers.get(event.client);
 		if (!botUser) return [{ type: "ignore", messageId: event.id }];
 
@@ -304,8 +310,25 @@ export class Brain {
 
 		let responseText = "";
 		let debugStats: DebugStats | undefined;
+		let typingSent = false;
 		try {
-			const result = await this.sapphire.ask(cleanText, sessionId, debugMode);
+			const result = await this.sapphire.askStream(
+				cleanText,
+				sessionId,
+				debugMode,
+				() => {
+					if (!typingSent) {
+						typingSent = true;
+						const typingDuration = Math.max(5000, delay + 30000);
+						sendCommand?.({
+							type: "typing",
+							id: `type_${event.id}`,
+							channel: event.channel,
+							duration: Math.round(typingDuration),
+						});
+					}
+				},
+			);
 			responseText = result.text.replace(/^[^:]+:\s*/, "");
 			if (debugMode && result.debugPromptTokens !== undefined) {
 				debugStats = {

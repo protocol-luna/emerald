@@ -36,7 +36,10 @@ export class EmeraldServer {
 						console.log(`[Emerald] ${clientId} connected (${event.userId})`);
 					}
 
-					const decisions = await this.brain.handleEvent(event);
+					const decisions = await this.brain.handleEvent(
+					event,
+					(cmd) => this.sendCommand(clientId, cmd),
+				);
 					for (const decision of decisions) {
 						if (decision.type === "respond") {
 							for (const cmd of decision.commands) {
