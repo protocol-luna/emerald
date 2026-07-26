@@ -9,6 +9,7 @@ import {
 	shouldReact,
 } from "./behavior/mannerisms";
 import { evaluateSleep } from "./behavior/sleep";
+import { applyLetterSwap, applyTypo } from "./behavior/typo";
 import type { EmeraldConfig } from "./config";
 import type {
 	InEvent,
@@ -18,6 +19,7 @@ import type {
 	ReplyStyle,
 	RespondCommand,
 } from "./protocol";
+import { SapphireClient } from "./sapphire-client";
 import { BrainState } from "./state/state";
 import { TopicFatigue } from "./state/topic-fatigue";
 import { evaluateMessage } from "./state/trigger";
@@ -51,6 +53,7 @@ export class Brain {
 	state = new BrainState();
 	fatigue = new TopicFatigue();
 	config: EmeraldConfig;
+	sapphire: SapphireClient;
 	botUsers = new Map<string, { userId: string; username: string }>();
 
 	private spontaneousTimers = new Map<string, ReturnType<typeof setInterval>>();
@@ -58,6 +61,7 @@ export class Brain {
 
 	constructor(config: EmeraldConfig) {
 		this.config = config;
+		this.sapphire = new SapphireClient(config);
 	}
 
 	start() {
@@ -109,14 +113,14 @@ export class Brain {
 
 	private emitSpontaneous(_client: string) {}
 
-	handleEvent(event: InEvent): Decision[] {
+	async handleEvent(event: InEvent): Promise<Decision[]> {
 		switch (event.type) {
 			case "ready":
 				this.registerClient(event.client, event.userId, event.username);
 				return [];
 
 			case "message":
-				return this.handleMessage(event);
+				return await this.handleMessage(event);
 
 			case "bot_message":
 				this.state.markBotActivity(event.channel);
@@ -136,7 +140,7 @@ export class Brain {
 		}
 	}
 
-	private handleMessage(event: MessageEvent): Decision[] {
+	private async handleMessage(event: MessageEvent): Promise<Decision[]> {
 		const botUser = this.botUsers.get(event.client);
 		if (!botUser) return [{ type: "ignore", messageId: event.id }];
 
@@ -290,18 +294,54 @@ export class Brain {
 
 		const replyStyle = this.pickReplyStyle(false);
 
+		const sessionId = `${event.client}:${event.channel}`;
+		let responseText = "";
+		try {
+			const raw = await this.sapphire.ask(event.text, sessionId);
+			responseText = raw.replace(/^[^:]+:\s*/, "");
+		} catch (err) {
+			console.error(`[Brain] Sapphire error for ${event.id}:`, err);
+			return [
+				{
+					type: "ignore",
+					messageId: event.id,
+				},
+			];
+		}
+
+		if (!responseText) {
+			return [{ type: "ignore", messageId: event.id }];
+		}
+
+		let processedText = responseText;
+
+		if (Math.random() < this.config.typo_chance) {
+			const result = applyTypo(processedText, this.config.typo_layout);
+			if (result) {
+				processedText = result.text;
+			}
+		}
+
+		if (Math.random() < this.config.letter_swap_chance) {
+			const result = applyLetterSwap(processedText);
+			if (result) {
+				processedText = result.text;
+			}
+		}
+
 		const respondCommand: RespondCommand = {
 			type: "respond",
 			id: `rsp_${event.id}`,
 			channel: event.channel,
 			text: event.text,
+			responseText: processedText,
 			delay: Math.round(delay),
 			replyTo: event.id,
 			replyStyle,
 			hesitationWord,
 			burstPlan: burstPlan ?? undefined,
 			react: reactPlan,
-			sessionId: `${event.client}:${event.channel}`,
+			sessionId,
 		};
 		commands.push(respondCommand);
 

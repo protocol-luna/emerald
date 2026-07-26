@@ -67,6 +67,7 @@ export type RespondCommand = {
 	id: string;
 	channel: string;
 	text: string;
+	responseText: string;
 	delay: number;
 	replyTo?: string;
 	replyStyle: ReplyStyle;

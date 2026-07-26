@@ -23,6 +23,10 @@ export type ReplyStyleConfig = {
 export type EmeraldConfig = {
 	port: number;
 
+	sapphire_host: string;
+	sapphire_port: number;
+	sapphire_bot_username: string;
+
 	names: string[];
 	keywords: string[];
 	random_chance: number;
@@ -80,6 +84,10 @@ export type EmeraldConfig = {
 
 export const DEFAULT_CONFIG: EmeraldConfig = {
 	port: 3126,
+
+	sapphire_host: "127.0.0.1",
+	sapphire_port: 3123,
+	sapphire_bot_username: "User",
 
 	names: ["Luna", "Pixie"],
 	keywords: [

@@ -24,7 +24,7 @@ export class EmeraldServer {
 		this.wss.on("connection", (ws) => {
 			let clientId = "";
 
-			ws.on("message", (raw) => {
+			ws.on("message", async (raw) => {
 				try {
 					const data = JSON.parse(raw.toString());
 					if (data.event !== "in") return;
@@ -36,7 +36,21 @@ export class EmeraldServer {
 						console.log(`[Emerald] ${clientId} connected (${event.userId})`);
 					}
 
-					this.brain.handleEvent(event);
+					const decisions = await this.brain.handleEvent(event);
+					for (const decision of decisions) {
+						if (decision.type === "respond") {
+							for (const cmd of decision.commands) {
+								this.sendCommand(clientId, cmd);
+							}
+						} else if (decision.type === "forgot") {
+							const cmd: OutCommand = {
+								type: "forgot",
+								id: `fgt_${decision.messageId}`,
+								channel: decision.channel,
+							};
+							this.sendCommand(clientId, cmd);
+						}
+					}
 				} catch (err) {
 					console.error("[Emerald] Error handling event:", err);
 				}

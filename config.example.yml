@@ -5,6 +5,11 @@
 
 port: 3126
 
+# --- LLM (Sapphire) ---
+sapphire_host: "127.0.0.1"
+sapphire_port: 3123
+sapphire_bot_username: "User"
+
 # --- Triggers ---
 names:
   - "Luna"
