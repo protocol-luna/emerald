@@ -297,10 +297,13 @@ export class Brain {
 
 		const sessionId = `${event.client}:${event.channel}`;
 		const debugMode = event.debug ?? false;
+
+		const cleanText = this.stripMentions(event.text, botUser.userId, botUser.username);
+
 		let responseText = "";
 		let debugStats: DebugStats | undefined;
 		try {
-			const result = await this.sapphire.ask(event.text, sessionId, debugMode);
+			const result = await this.sapphire.ask(cleanText, sessionId, debugMode);
 			responseText = result.text.replace(/^[^:]+:\s*/, "");
 			if (debugMode && result.debugPromptTokens !== undefined) {
 				debugStats = {
@@ -417,5 +420,14 @@ export class Brain {
 			return { messageReference: true, mentionRepliedUser: false };
 		if (roll < 0.9) return { messageReference: true, mentionRepliedUser: true };
 		return { messageReference: false, mentionRepliedUser: false };
+	}
+
+	private stripMentions(text: string, userId: string, username: string): string {
+		let result = text;
+		result = result.replace(new RegExp(`<@!?${userId}>`, "g"), "");
+		if (username) {
+			result = result.replace(new RegExp(`@${username}\\b`, "gi"), "");
+		}
+		return result.trim();
 	}
 }
