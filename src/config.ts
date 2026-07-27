@@ -39,6 +39,7 @@ export type EmeraldConfig = {
 
 	spontaneous_interval_ms: number;
 	spontaneous_chance: number;
+	spontaneous_channel_window_ms: number;
 	spontaneous_whitelist: string;
 
 	burst_chance: number;
@@ -164,6 +165,7 @@ export const DEFAULT_CONFIG: EmeraldConfig = {
 
 	spontaneous_interval_ms: 300000,
 	spontaneous_chance: 0.12,
+	spontaneous_channel_window_ms: 600000,
 	spontaneous_whitelist: "*",
 
 	burst_chance: 0.15,

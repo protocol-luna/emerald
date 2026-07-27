@@ -14,7 +14,7 @@ export class EmeraldServer {
 	private connections = new Map<string, BotConnection>();
 
 	constructor(config: EmeraldConfig) {
-		this.brain = new Brain(config);
+		this.brain = new Brain(config, (cmd) => this.broadcastCommand(cmd));
 		this.wss = new WebSocketServer({ port: config.port });
 	}
 

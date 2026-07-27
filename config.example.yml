@@ -82,6 +82,7 @@ reactions:
 # --- Spontané ---
 spontaneous_interval_ms: 300000
 spontaneous_chance: 0.12
+spontaneous_channel_window_ms: 600000
 spontaneous_whitelist: "*"
 
 # --- Burst ---

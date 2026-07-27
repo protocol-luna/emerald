@@ -19,6 +19,7 @@ import type {
 	ReactionPlan,
 	ReplyStyle,
 	RespondCommand,
+	SpontaneousCommand,
 } from "./protocol";
 import { SapphireClient } from "./sapphire-client";
 import { BrainState } from "./state/state";
@@ -59,10 +60,12 @@ export class Brain {
 
 	private spontaneousTimers = new Map<string, ReturnType<typeof setInterval>>();
 	private pruneTimer: ReturnType<typeof setInterval> | null = null;
+	private broadcastCommand: ((cmd: OutCommand) => void) | null = null;
 
-	constructor(config: EmeraldConfig) {
+	constructor(config: EmeraldConfig, broadcastCommand?: (cmd: OutCommand) => void) {
 		this.config = config;
 		this.sapphire = new SapphireClient(config);
+		this.broadcastCommand = broadcastCommand ?? null;
 	}
 
 	start() {
@@ -107,12 +110,39 @@ export class Brain {
 		);
 		if (sleepBehavior === "sleep") return;
 
+		// find channels where the bot was recently active
+		// but a user was the last speaker (don't talk into the void)
+		const botUser = this.botUsers.get(client);
+		if (!botUser) return;
+
+		const eligibleChannels: string[] = [];
+		for (const [channel] of this.state.botActivity) {
+			if (!this.state.isRecentBotActivity(channel, this.config.spontaneous_channel_window_ms)) continue;
+			const lastSpeaker = this.state.getLastSpeaker(channel);
+			if (lastSpeaker && lastSpeaker !== botUser.userId) {
+				eligibleChannels.push(channel);
+			}
+		}
+
+		if (eligibleChannels.length === 0) return;
+
+		const channel = eligibleChannels[Math.floor(Math.random() * eligibleChannels.length)];
+		const sessionId = `${client}:${channel}`;
+
 		setImmediate(() => {
-			this.emitSpontaneous(client);
+			this.emitSpontaneous(client, channel, sessionId);
 		});
 	}
 
-	private emitSpontaneous(_client: string) {}
+	private emitSpontaneous(client: string, channel: string, sessionId: string) {
+		const cmd: SpontaneousCommand = {
+			type: "spontaneous",
+			id: `spon_${channel}_${Date.now()}`,
+			channel,
+			sessionId,
+		};
+		this.broadcastCommand?.(cmd);
+	}
 
 	async handleEvent(
 		event: InEvent,
