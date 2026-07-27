@@ -407,12 +407,15 @@ export class Brain {
 
 		let typoApplied = false;
 		let swapApplied = false;
+		let typoResult: { text: string; original: string; corrected: string } | null = null;
+		let swapResult: { text: string; original: string; corrected: string } | null = null;
 
 		if (Math.random() < this.config.typo_chance) {
 			const result = applyTypo(processedText, this.config.typo_layout);
 			if (result) {
 				processedText = result.text;
 				typoApplied = true;
+				typoResult = result;
 			}
 		}
 
@@ -421,6 +424,7 @@ export class Brain {
 			if (result) {
 				processedText = result.text;
 				swapApplied = true;
+				swapResult = result;
 			}
 		}
 
@@ -431,6 +435,10 @@ export class Brain {
 			debugStats.behavior.burstApplied = burst;
 			debugStats.behavior.voiceApplied = willVoice;
 		}
+
+		const correctionDelayMin = this.config.typo_correction_delay_min;
+		const correctionDelayMax = this.config.typo_correction_delay_max;
+		const correctionDelay = correctionDelayMin + Math.random() * (correctionDelayMax - correctionDelayMin);
 
 		const respondCommand: RespondCommand = {
 			type: "respond",
@@ -443,6 +451,21 @@ export class Brain {
 			replyStyle,
 			hesitationWord,
 			burstPlan: burstPlan ?? undefined,
+			typoCorrection: typoResult
+				? {
+						originalWord: typoResult.original,
+						correctedWord: typoResult.corrected,
+						delay: Math.round(correctionDelay),
+						style: this.config.typo_correction_style,
+					}
+				: undefined,
+			letterSwap: swapResult
+				? {
+						original: swapResult.original,
+						corrected: swapResult.corrected,
+						delay: Math.round(correctionDelay),
+					}
+				: undefined,
 			react: reactPlan,
 			voice: willVoice || undefined,
 			sessionId,
