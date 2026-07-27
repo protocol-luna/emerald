@@ -21,6 +21,7 @@ import type {
 	RespondCommand,
 	SpontaneousCommand,
 } from "./protocol";
+import { RubyClient } from "./ruby-client";
 import { SapphireClient } from "./sapphire-client";
 import { BrainState } from "./state/state";
 import { TopicFatigue } from "./state/topic-fatigue";
@@ -56,6 +57,7 @@ export class Brain {
 	fatigue = new TopicFatigue();
 	config: EmeraldConfig;
 	sapphire: SapphireClient;
+	ruby: RubyClient | null = null;
 	botUsers = new Map<string, { userId: string; username: string }>();
 
 	private spontaneousTimers = new Map<string, ReturnType<typeof setInterval>>();
@@ -65,6 +67,9 @@ export class Brain {
 	constructor(config: EmeraldConfig, broadcastCommand?: (cmd: OutCommand) => void) {
 		this.config = config;
 		this.sapphire = new SapphireClient(config);
+		if (config.ruby_enabled) {
+			this.ruby = new RubyClient(config);
+		}
 		this.broadcastCommand = broadcastCommand ?? null;
 	}
 
@@ -134,7 +139,61 @@ export class Brain {
 		});
 	}
 
-	private emitSpontaneous(client: string, channel: string, sessionId: string) {
+	private async emitSpontaneous(client: string, channel: string, sessionId: string) {
+		if (this.ruby && this.config.ruby_reasons.includes("spontaneous")) {
+			try {
+				const text = await this.ruby.generate(undefined, 20);
+				if (!text) return;
+
+				const delay = computeDelay(
+					"random",
+					"",
+					this.config.concentration,
+					0,
+					this.config.inactivity_warmup_minutes,
+					this.config.inactivity_warmup_multiplier,
+					null,
+					1,
+				);
+
+				let processedText = text;
+				if (Math.random() < this.config.typo_chance) {
+					const r = applyTypo(processedText, this.config.typo_layout);
+					if (r) processedText = r.text;
+				}
+				if (Math.random() < this.config.letter_swap_chance) {
+					const r = applyLetterSwap(processedText);
+					if (r) processedText = r.text;
+				}
+
+				const willHesitate = shouldHesitate(this.config.hesitation_chance);
+				const hesitationWord = willHesitate
+					? pickHesitationWord(this.config.hesitation_words)
+					: undefined;
+
+				const burst = shouldBurst(this.config.burst_chance);
+				const burstPlan = burst
+					? planBurst(this.config.burst_delay_min, this.config.burst_delay_max)
+					: undefined;
+
+				const cmd: RespondCommand = {
+					type: "respond",
+					id: `ruby_spon_${channel}_${Date.now()}`,
+					channel,
+					text: "",
+					responseText: processedText,
+					delay: Math.round(delay),
+					hesitationWord,
+					burstPlan: burstPlan ?? undefined,
+					sessionId,
+				};
+				this.broadcastCommand?.(cmd);
+				return;
+			} catch (err) {
+				console.error("[Brain] Ruby spontaneous error:", err);
+			}
+		}
+
 		const cmd: SpontaneousCommand = {
 			type: "spontaneous",
 			id: `spon_${channel}_${Date.now()}`,
@@ -180,6 +239,10 @@ export class Brain {
 	): Promise<Decision[]> {
 		const botUser = this.botUsers.get(event.client);
 		if (!botUser) return [{ type: "ignore", messageId: event.id }];
+
+		if (this.ruby && event.user !== botUser.userId) {
+			this.ruby.train(event.text, event.isDM);
+		}
 
 		const trigger = evaluateMessage(
 			event,
@@ -342,56 +405,67 @@ export class Brain {
 		let responseText = "";
 		let debugStats: DebugStats | undefined;
 		let typingSent = false;
+		const useRuby =
+			this.ruby &&
+			this.config.ruby_reasons.includes(trigger.reason ?? "");
 		try {
-			const result = await this.sapphire.askStream(
-				cleanText,
-				sessionId,
-				debugMode,
-				() => {
-					if (!typingSent) {
-						typingSent = true;
-						const typingDuration = Math.max(5000, delay + 30000);
-						sendCommand?.({
-							type: "typing",
-							id: `type_${event.id}`,
-							channel: event.channel,
-							duration: Math.round(typingDuration),
-						});
-					}
-				},
-			);
-			responseText = result.text.replace(/^[^:]+:\s*/, "");
-			if (debugMode && result.debugPromptTokens !== undefined) {
-				debugStats = {
-					promptTokens: result.debugPromptTokens,
-					completionTokens: result.debugCompletionTokens ?? 0,
-					timeMs: result.debugTimeMs ?? 0,
-					tokensPerSecond: result.debugTokensPerSecond ?? 0,
-					emotionStateValence: result.debugEmotionStateValence ?? 0,
-					emotionStateArousal: result.debugEmotionStateArousal ?? 0,
-					classificationLabel: result.label,
-					classificationConfidence: result.debugClassificationConfidence ?? 0,
-					messageValence: result.valence,
-					messageArousal: result.arousal,
-					behavior: {
-						typoChance: this.config.typo_chance,
-						typoApplied: false,
-						swapChance: this.config.letter_swap_chance,
-						swapApplied: false,
-						burstChance: this.config.burst_chance,
-						burstApplied: false,
-						hesitationChance: this.config.hesitation_chance,
-						hesitationApplied: false,
-						forgetChance: this.config.forget_chance,
-						voiceChance: this.config.voice_message_chance,
-						voiceApplied: false,
-						sleepMode: sleepBehavior,
-						fatigueMultiplier,
+			if (useRuby) {
+				const seed = event.text.split(/\s+/).slice(-2).join(" ");
+				responseText = await this.ruby!.generate(seed, 25);
+			} else {
+				const result = await this.sapphire.askStream(
+					cleanText,
+					sessionId,
+					debugMode,
+					() => {
+						if (!typingSent) {
+							typingSent = true;
+							const typingDuration = Math.max(5000, delay + 30000);
+							sendCommand?.({
+								type: "typing",
+								id: `type_${event.id}`,
+								channel: event.channel,
+								duration: Math.round(typingDuration),
+							});
+						}
 					},
-				};
+				);
+				responseText = result.text.replace(/^[^:]+:\s*/, "");
+				if (debugMode && result.debugPromptTokens !== undefined) {
+					debugStats = {
+						promptTokens: result.debugPromptTokens,
+						completionTokens: result.debugCompletionTokens ?? 0,
+						timeMs: result.debugTimeMs ?? 0,
+						tokensPerSecond: result.debugTokensPerSecond ?? 0,
+						emotionStateValence: result.debugEmotionStateValence ?? 0,
+						emotionStateArousal: result.debugEmotionStateArousal ?? 0,
+						classificationLabel: result.label,
+						classificationConfidence: result.debugClassificationConfidence ?? 0,
+						messageValence: result.valence,
+						messageArousal: result.arousal,
+						behavior: {
+							typoChance: this.config.typo_chance,
+							typoApplied: false,
+							swapChance: this.config.letter_swap_chance,
+							swapApplied: false,
+							burstChance: this.config.burst_chance,
+							burstApplied: false,
+							hesitationChance: this.config.hesitation_chance,
+							hesitationApplied: false,
+							forgetChance: this.config.forget_chance,
+							voiceChance: this.config.voice_message_chance,
+							voiceApplied: false,
+							sleepMode: sleepBehavior,
+							fatigueMultiplier,
+						},
+					};
+				}
 			}
 		} catch (err) {
-			console.error(`[Brain] Sapphire error for ${event.id}:`, err);
+			console.error(
+				`[Brain] ${useRuby ? "Ruby" : "Sapphire"} error for ${event.id}:`,
+				err,
+			);
 			return [
 				{
 					type: "ignore",

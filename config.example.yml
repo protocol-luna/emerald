@@ -10,6 +10,14 @@ sapphire_host: "127.0.0.1"
 sapphire_port: 3123
 sapphire_bot_username: "User"
 
+# --- Markov (Ruby) ---
+ruby_enabled: true
+ruby_host: "127.0.0.1"
+ruby_port: 3127
+ruby_reasons:
+  - "random"
+  - "spontaneous"
+
 # --- Triggers ---
 names:
   - "Luna"

@@ -27,6 +27,11 @@ export type EmeraldConfig = {
 	sapphire_port: number;
 	sapphire_bot_username: string;
 
+	ruby_enabled: boolean;
+	ruby_host: string;
+	ruby_port: number;
+	ruby_reasons: string[];
+
 	names: string[];
 	keywords: string[];
 	keyword_chance: number;
@@ -91,6 +96,11 @@ export const DEFAULT_CONFIG: EmeraldConfig = {
 	sapphire_host: "127.0.0.1",
 	sapphire_port: 3123,
 	sapphire_bot_username: "User",
+
+	ruby_enabled: true,
+	ruby_host: "127.0.0.1",
+	ruby_port: 3127,
+	ruby_reasons: ["random", "spontaneous"],
 
 	names: ["Luna", "Pixie"],
 	keywords: [
