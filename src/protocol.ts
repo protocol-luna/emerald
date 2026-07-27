@@ -1,3 +1,5 @@
+import type { TriggerReason } from "./behavior/mannerisms";
+
 export type ClientId = "jade" | "pixieglow";
 
 export type MessageEvent = {
@@ -90,6 +92,10 @@ export type DebugStats = {
 	classificationConfidence: number;
 	messageValence: number;
 	messageArousal: number;
+	triggerReason: TriggerReason;
+	delay: number;
+	usedRuby: boolean;
+	inactivityMs: number;
 	behavior?: BehaviorDebug;
 };
 

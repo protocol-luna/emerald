@@ -412,6 +412,39 @@ export class Brain {
 			if (useRuby) {
 				const seed = event.text.split(/\s+/).slice(-2).join(" ");
 				responseText = await this.ruby!.generate(seed, 25);
+				if (debugMode) {
+					debugStats = {
+						promptTokens: 0,
+						completionTokens: 0,
+						timeMs: 0,
+						tokensPerSecond: 0,
+						emotionStateValence: 0,
+						emotionStateArousal: 0,
+						classificationLabel: "",
+						classificationConfidence: 0,
+						messageValence: 0,
+						messageArousal: 0,
+						triggerReason: trigger.reason,
+						delay: Math.round(delay),
+						usedRuby: true,
+						inactivityMs,
+						behavior: {
+							typoChance: this.config.typo_chance,
+							typoApplied: false,
+							swapChance: this.config.letter_swap_chance,
+							swapApplied: false,
+							burstChance: this.config.burst_chance,
+							burstApplied: false,
+							hesitationChance: this.config.hesitation_chance,
+							hesitationApplied: false,
+							forgetChance: this.config.forget_chance,
+							voiceChance: this.config.voice_message_chance,
+							voiceApplied: false,
+							sleepMode: sleepBehavior,
+							fatigueMultiplier,
+						},
+					};
+				}
 			} else {
 				const result = await this.sapphire.askStream(
 					cleanText,
@@ -443,6 +476,10 @@ export class Brain {
 						classificationConfidence: result.debugClassificationConfidence ?? 0,
 						messageValence: result.valence,
 						messageArousal: result.arousal,
+						triggerReason: trigger.reason,
+						delay: Math.round(delay),
+						usedRuby: false,
+						inactivityMs,
 						behavior: {
 							typoChance: this.config.typo_chance,
 							typoApplied: false,
