@@ -18,6 +18,7 @@ export function evaluateMessage(
 	config: {
 		names: string[];
 		keywords: string[];
+		keyword_chance: number;
 		random_chance: number;
 		cooldown_seconds: number;
 		follow_up_window: number;
@@ -142,12 +143,12 @@ export function evaluateMessage(
 		};
 	}
 
-	// Keyword match
+	// Keyword match (probabilistic)
 	const words = text.split(/\s+/);
 	const hasKeyword = config.keywords.some((kw) =>
 		words.includes(kw.toLowerCase()),
 	);
-	if (hasKeyword) {
+	if (hasKeyword && Math.random() < config.keyword_chance) {
 		return {
 			shouldRespond: true,
 			reason: "keyword",

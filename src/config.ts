@@ -29,6 +29,7 @@ export type EmeraldConfig = {
 
 	names: string[];
 	keywords: string[];
+	keyword_chance: number;
 	random_chance: number;
 	cooldown_seconds: number;
 	reply_in_dm: boolean;
@@ -103,6 +104,7 @@ export const DEFAULT_CONFIG: EmeraldConfig = {
 		"llm",
 		"bot",
 	],
+	keyword_chance: 0.1,
 	random_chance: 0.015,
 	cooldown_seconds: 8,
 	reply_in_dm: true,

@@ -189,6 +189,7 @@ export class Brain {
 			{
 				names: this.config.names,
 				keywords: this.config.keywords,
+				keyword_chance: this.config.keyword_chance,
 				random_chance: this.config.random_chance,
 				cooldown_seconds: this.config.cooldown_seconds,
 				follow_up_window: this.config.follow_up_window,
