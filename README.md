@@ -1,51 +1,82 @@
-# Emerald
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="images/logo.webp">
+    <img src="images/logo.webp" alt="Emerald" width="200" style="border-radius: 20px;">
+  </picture>
+  <h1 align="center">Emerald</h1>
+  <p align="center">The brain and decision-making engine for the Luna Protocol ecosystem</p>
+  <p align="center">
+    <a href="https://github.com/protocol-luna/emerald/blob/main/LICENSE">
+      <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License">
+    </a>
+    <a href="https://www.typescriptlang.org/">
+      <img src="https://img.shields.io/badge/language-TypeScript-3178C6?style=flat-square" alt="Language">
+    </a>
+    <a href="https://github.com/protocol-luna/emerald/actions">
+      <img src="https://img.shields.io/badge/build-passing-brightgreen?style=flat-square" alt="Build">
+    </a>
+    <a href="https://nodejs.org/">
+      <img src="https://img.shields.io/badge/node-%3E%3D18-339933?style=flat-square" alt="Node">
+    </a>
+    <a href="https://github.com/protocol-luna">
+      <img src="https://img.shields.io/badge/part%20of-Luna%20Protocol-9370DB?style=flat-square" alt="Luna Protocol">
+    </a>
+  </p>
+</p>
 
-Emerald is the brain and decision-making service for the Luna Protocol ecosystem. It sits between platform adapters (bots) and the Sapphire LLM gateway, handling behavior evaluation, Sapphire communication, response processing, and connection management.
+Emerald sits between platform adapters (bots) and the Sapphire LLM gateway, handling behavior evaluation, Sapphire communication, response processing, and connection management.
 
-> **Architecture**: `Platform → Bot → WebSocket → Emerald → Sapphire (HTTP) → Krystal (llama.cpp)`
+```mermaid
+graph LR
+    Platform["Discord / Matrix"] --> Bot["Bot Adapter"]
+    Bot -- "WebSocket :3126" --> Emerald["Emerald<br/><strong>Brain</strong>"]
+    Emerald -- "HTTP :3123" --> Sapphire["Sapphire<br/>LLM Gateway"]
+    Sapphire -- "HTTP :3124" --> Krystal["Krystal<br/>llama.cpp"]
+    Emerald --> Ruby["Ruby<br/>Markov Chain"]
+```
 
 ## How It Works
 
 1. Bots connect to Emerald via WebSocket on port 3126
 2. Bots forward user messages as `MessageEvent`s (optionally with `debug: true`)
 3. Emerald evaluates behavior rules (burst, typo, sleep, mannerisms, voice chance)
-4. Emerald strips bot mentions (`@Kalupso`, `<@userId>`) from the text
-5. Emerald calls Sapphire's `/v1/respond` via **streaming** (`askStream`) -- the response arrives token by token
-6. **On the first token**, Emerald sends a `TypingCommand` to the bot -- the typing indicator appears immediately
-7. Remaining tokens are buffered; when complete, Sapphire returns final metadata (text, label, emotion, debug stats)
-8. Emerald processes the response (applies typo/swap behavior, maps snake_case debug stats to camelCase)
+4. Emerald strips bot mentions from the text
+5. Emerald calls Sapphire's `/v1/respond` via **streaming** — the response arrives token by token
+6. **On the first token**, Emerald sends a `TypingCommand` to the bot — the typing indicator appears immediately
+7. Remaining tokens are buffered; when complete, Sapphire returns final metadata
+8. Emerald processes the response (applies typo/swap behavior, maps debug stats)
 9. Emerald sends a `RespondCommand` back to the bot with `responseText`, optional `voice` flag, and optional `debugStats`
-10. The bot sends the response text to the platform (optionally as a voice message if `voice: true`)
-11. If the stream output was degenerate, Sapphire discards it -- no respond command is sent, typing expires naturally
+10. The bot sends the response text to the platform
 
 ## Components
 
 ### Core
 
-- **`src/server.ts`** -- WebSocket server that handles bot connections, message events, and sends commands
-- **`src/brain.ts`** -- Central decision engine: evaluates behavior rules, calls Sapphire via streaming, applies typo/swap, routes decisions
-- **`src/sapphire-client.ts`** -- HTTP client for communicating with Sapphire (`ask` for non-streaming, `askStream` for SSE streaming)
-- **`src/protocol.ts`** -- Type definitions for WebSocket messages (events & commands) including `debug`, `responseText`, `voice`, `BehaviorDebug`
-- **`src/config.ts`** -- Configuration management (YAML-based)
+- **`src/server.ts`** — WebSocket server handling bot connections, message events, and commands
+- **`src/brain.ts`** — Central decision engine: evaluates behavior rules, calls Sapphire via streaming, applies typo/swap, routes decisions
+- **`src/sapphire-client.ts`** — HTTP client for Sapphire (`ask` non-streaming, `askStream` SSE streaming)
+- **`src/ruby-client.ts`** — HTTP client for Ruby (Markov chain) integration
+- **`src/protocol.ts`** — Type definitions for WebSocket messages
+- **`src/config.ts`** — YAML-based configuration management
 
 ### Behavior
 
-- **`src/behavior/sleep.ts`** -- Sleep schedule behavior
-- **`src/behavior/mannerisms.ts`** -- Mannerism pattern injection (hesitation, burst, reactions)
-- **`src/behavior/burst.ts`** -- Burst message behavior
-- **`src/behavior/typo.ts`** -- Typo/letter-swap behavior and rate limiting
+- **`src/behavior/sleep.ts`** — Sleep schedule behavior (circadian rhythm)
+- **`src/behavior/mannerisms.ts`** — Mannerism pattern injection (hesitation, burst, reactions)
+- **`src/behavior/burst.ts`** — Burst message behavior
+- **`src/behavior/typo.ts`** — Typo/letter-swap behavior and rate limiting
 
 ### State
 
-- **`src/state/state.ts`** -- State management (activity tracking, session limits)
-- **`src/state/trigger.ts`** -- Trigger evaluation (mentions, DMs, names, keywords, random)
-- **`src/state/topic-fatigue.ts`** -- Topic fatigue tracking
+- **`src/state/state.ts`** — State management (activity tracking, session limits)
+- **`src/state/trigger.ts`** — Trigger evaluation (mentions, DMs, names, keywords, random)
+- **`src/state/topic-fatigue.ts`** — Topic fatigue tracking
 
 ## Features
 
 ### Streaming + First-Token Typing
 
-Instead of waiting for the full LLM response, Emerald streams from Sapphire's SSE endpoint. The first token triggers an immediate `TypingCommand` to the bot -- the user sees "typing..." before the model has finished generating.
+Emerald streams from Sapphire's SSE endpoint. The first token triggers an immediate `TypingCommand` to the bot — the user sees "typing..." before the model has finished generating.
 
 ### Centralized Behavior Config
 
@@ -56,60 +87,37 @@ All behavior decisions live in Emerald's `config.yml`:
 - Hesitation chance & word list
 - Sleep schedules & timezone
 - Topic fatigue thresholds
-- **Voice message chance** (decides when to set `voice: true` on the respond command)
+- Voice message chance
 - Forget chance
+
+### Ruby Markov Chain Integration
+
+Every message is trained into Ruby's Markov chain. When configured, triggers like `random` or `spontaneous` use Ruby instead of the LLM — generating context-free, human-like messages at near-zero latency.
 
 ### Debug Mode
 
-When `debug: true` is set on a `MessageEvent`, Sapphire returns token counts, timing, emotion state (valence/arousal), and classification confidence. Emerald forwards these as `debugStats` in the respond command. The bot appends formatted `-# ` lines.
-
-### Mention Stripping
-
-Bot mentions (`@Kalupso`, `<@userId>`) are stripped from the text before sending to Sapphire, preventing the model from echoing its own name.
+When `debug: true` is set on a `MessageEvent`, Sapphire returns token counts, timing, emotion state, and classification confidence. Emerald forwards these as `debugStats` in the respond command.
 
 ## Protocol
 
 ### Events (Bot → Emerald)
 
-- `MessageEvent` -- `{ type: "message", id, client, channel, user, text, timestamp, isDM, mentions?, debug? }`
-- `ReadyEvent` -- `{ type: "ready", client, userId, username }`
-- `BotMessageEvent` -- `{ type: "bot_message", client, channel, text, timestamp }`
-- `PresenceEvent` -- `{ type: "presence", client, status }`
+| Event | Description |
+|-------|-------------|
+| `MessageEvent` | `{ type: "message", id, client, channel, user, text, timestamp, isDM, mentions?, debug? }` |
+| `ReadyEvent` | `{ type: "ready", client, userId, username }` |
+| `BotMessageEvent` | `{ type: "bot_message", client, channel, text, timestamp }` |
+| `PresenceEvent` | `{ type: "presence", client, status }` |
 
 ### Commands (Emerald → Bot)
 
-- `RespondCommand` -- `{ type: "respond", id, channel, text, responseText, delay, replyTo, replyStyle, hesitationWord?, burstPlan?, typoCorrection?, react?, voice?, sessionId?, debugStats? }`
-- `TypingCommand` -- `{ type: "typing", id, channel, duration }`
-- `SetPresenceCommand` -- `{ type: "set_presence", id, status, text?, activityType? }`
-- `SpontaneousCommand` -- `{ type: "spontaneous", id, channel, sessionId }`
-- `ForgotCommand` -- `{ type: "forgot", id, channel }`
-
-### DebugStats
-
-```typescript
-{
-  promptTokens: number;
-  completionTokens: number;
-  timeMs: number;
-  tokensPerSecond: number;
-  emotionStateValence: number;
-  emotionStateArousal: number;
-  classificationLabel: string;
-  classificationConfidence: number;
-  messageValence: number;
-  messageArousal: number;
-  behavior?: {
-    typoChance, typoApplied,
-    swapChance, swapApplied,
-    burstChance, burstApplied,
-    hesitationChance, hesitationApplied,
-    voiceChance, voiceApplied,
-    forgetChance,
-    sleepMode: string | null;
-    fatigueMultiplier: number;
-  };
-}
-```
+| Command | Description |
+|---------|-------------|
+| `RespondCommand` | Response text with optional voice, debug stats, burst plan, hesitation |
+| `TypingCommand` | Show typing indicator in channel |
+| `SetPresenceCommand` | Update bot status/activity |
+| `SpontaneousCommand` | Trigger spontaneous message generation |
+| `ForgotCommand` | Silently drop the message |
 
 ## Configuration
 
@@ -122,7 +130,8 @@ sapphire_port: 3123
 sapphire_bot_username: "User"
 names: ["Luna", "Pixie"]
 random_chance: 0.015
-# ... see config.example.yml for full options
+ruby_enabled: true
+ruby_reasons: ["random", "spontaneous"]
 ```
 
 ## Running
