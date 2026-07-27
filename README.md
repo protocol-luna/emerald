@@ -24,12 +24,12 @@
 Emerald sits between platform adapters (bots) and the Sapphire LLM gateway, handling behavior evaluation, Sapphire communication, response processing, and connection management. It's the centralized decision engine — bots are thin adapters, all behavior logic lives here.
 
 ```mermaid
-graph LR
+flowchart LR
     Platform["Discord / Matrix"] --> Bot["Bot Adapter"]
-    Bot -- "WebSocket :3126" --> Emerald["Emerald<br/><strong>Brain</strong>"]
-    Emerald -- "HTTP :3123" --> Sapphire["Sapphire<br/>LLM Gateway"]
-    Sapphire -- "HTTP :3124" --> Krystal["Krystal<br/>llama.cpp"]
-    Emerald -- "HTTP :3127" --> Ruby["Ruby<br/>Markov Chain"]
+    Bot -- ":3126 WS" --> Emerald["Emerald (Brain)"]
+    Emerald -- ":3123" --> Sapphire["Sapphire (LLM Gateway)"]
+    Sapphire -- ":3124" --> Krystal["Krystal (llama.cpp)"]
+    Emerald -- ":3127" --> Ruby["Ruby (Markov Chain)"]
 ```
 
 ## How It Works
