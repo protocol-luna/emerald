@@ -142,7 +142,7 @@ export class Brain {
 	private async emitSpontaneous(client: string, channel: string, sessionId: string) {
 		if (this.ruby && this.config.ruby_reasons.includes("spontaneous")) {
 			try {
-				const text = await this.ruby.generate(undefined, 20);
+				const text = await this.ruby.generate(undefined, 20, channel);
 				if (!text) return;
 
 				const delay = computeDelay(
@@ -241,7 +241,7 @@ export class Brain {
 		if (!botUser) return [{ type: "ignore", messageId: event.id }];
 
 		if (this.ruby && event.user !== botUser.userId) {
-			this.ruby.train(event.text, event.isDM);
+			this.ruby.train(event);
 		}
 
 		const trigger = evaluateMessage(

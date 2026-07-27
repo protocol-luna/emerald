@@ -1,4 +1,5 @@
 import type { EmeraldConfig } from "./config";
+import type { InEvent } from "./protocol";
 
 export class RubyClient {
 	private base: string;
@@ -7,23 +8,29 @@ export class RubyClient {
 		this.base = `http://${config.ruby_host}:${config.ruby_port}`;
 	}
 
-	async train(text: string, isDM = false) {
+	async train(event: InEvent & { type: "message" }) {
 		try {
 			await fetch(`${this.base}/train`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ text, isDM }),
+				body: JSON.stringify({
+					text: event.text,
+					isDM: event.isDM,
+					channel_id: event.channel,
+					user_id: event.user,
+					platform: event.client,
+				}),
 			});
 		} catch {
-			/* fire and forget -- don't block message handling */
+			/* fire and forget */
 		}
 	}
 
-	async generate(seed?: string, maxLength = 30): Promise<string> {
+	async generate(seed?: string, maxLength = 30, channelId?: string): Promise<string> {
 		const resp = await fetch(`${this.base}/generate`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ seed, max_length: maxLength }),
+			body: JSON.stringify({ seed, max_length: maxLength, channel_id: channelId }),
 		});
 		if (!resp.ok) {
 			const errText = await resp.text().catch(() => "");
