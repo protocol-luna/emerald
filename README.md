@@ -12,9 +12,6 @@
     <a href="https://www.typescriptlang.org/">
       <img src="https://img.shields.io/badge/language-TypeScript-3178C6?style=flat-square" alt="Language">
     </a>
-    <a href="https://github.com/protocol-luna/emerald/actions">
-      <img src="https://img.shields.io/badge/build-passing-brightgreen?style=flat-square" alt="Build">
-    </a>
     <a href="https://nodejs.org/">
       <img src="https://img.shields.io/badge/node-%3E%3D18-339933?style=flat-square" alt="Node">
     </a>
@@ -24,7 +21,7 @@
   </p>
 </p>
 
-Emerald sits between platform adapters (bots) and the Sapphire LLM gateway, handling behavior evaluation, Sapphire communication, response processing, and connection management.
+Emerald sits between platform adapters (bots) and the Sapphire LLM gateway, handling behavior evaluation, Sapphire communication, response processing, and connection management. It's the centralized decision engine — bots are thin adapters, all behavior logic lives here.
 
 ```mermaid
 graph LR
@@ -32,7 +29,7 @@ graph LR
     Bot -- "WebSocket :3126" --> Emerald["Emerald<br/><strong>Brain</strong>"]
     Emerald -- "HTTP :3123" --> Sapphire["Sapphire<br/>LLM Gateway"]
     Sapphire -- "HTTP :3124" --> Krystal["Krystal<br/>llama.cpp"]
-    Emerald --> Ruby["Ruby<br/>Markov Chain"]
+    Emerald -- "HTTP :3127" --> Ruby["Ruby<br/>Markov Chain"]
 ```
 
 ## How It Works
@@ -48,76 +45,136 @@ graph LR
 9. Emerald sends a `RespondCommand` back to the bot with `responseText`, optional `voice` flag, and optional `debugStats`
 10. The bot sends the response text to the platform
 
-## Components
+## Technical Overview
 
-### Core
+Emerald is **2,660 lines of TypeScript** across 15 source files, compiled via esbuild into a single `self-cli.cjs` bundle. It has zero runtime dependencies beyond `ws` (WebSocket) and `js-yaml` (config).
 
-- **`src/server.ts`** — WebSocket server handling bot connections, message events, and commands
-- **`src/brain.ts`** — Central decision engine: evaluates behavior rules, calls Sapphire via streaming, applies typo/swap, routes decisions
-- **`src/sapphire-client.ts`** — HTTP client for Sapphire (`ask` non-streaming, `askStream` SSE streaming)
-- **`src/ruby-client.ts`** — HTTP client for Ruby (Markov chain) integration
-- **`src/protocol.ts`** — Type definitions for WebSocket messages
-- **`src/config.ts`** — YAML-based configuration management
+### Architecture
 
-### Behavior
+```
+index.ts
+  |-- config.ts (EmeraldConfig, loadConfig)
+  |-- server.ts (EmeraldServer)
+       |-- brain.ts (Brain) [590 lines — the core]
+       |    |-- behavior/sleep.ts      (circadian rhythm)
+       |    |-- behavior/mannerisms.ts (delay, ignore, reaction, hesitation, forget)
+       |    |-- behavior/burst.ts      (multi-fragment messages)
+       |    |-- behavior/typo.ts       (keyboard typo + letter swap)
+       |    |-- sapphire-client.ts     (LLM gateway HTTP client)
+       |    |-- ruby-client.ts         (Markov chain HTTP client)
+       |    |-- state/state.ts         (BrainState — in-memory state)
+       |    |-- state/topic-fatigue.ts (word repetition tracking)
+       |    |-- state/trigger.ts       (trigger evaluation chain)
+       |-- protocol.ts                 (all WebSocket message types)
+       |-- client.ts                   (bot-side WebSocket library)
+```
 
-- **`src/behavior/sleep.ts`** — Sleep schedule behavior (circadian rhythm)
-- **`src/behavior/mannerisms.ts`** — Mannerism pattern injection (hesitation, burst, reactions)
-- **`src/behavior/burst.ts`** — Burst message behavior
-- **`src/behavior/typo.ts`** — Typo/letter-swap behavior and rate limiting
+### Message Processing Pipeline
 
-### State
+Every incoming message goes through this pipeline in `brain.ts:handleMessage()`:
 
-- **`src/state/state.ts`** — State management (activity tracking, session limits)
-- **`src/state/trigger.ts`** — Trigger evaluation (mentions, DMs, names, keywords, random)
-- **`src/state/topic-fatigue.ts`** — Topic fatigue tracking
+```
+1. Train Ruby (fire-and-forget)
+2. evaluateMessage()          → TriggerResult (mention, dm, name, keyword, follow-up, random)
+3. Check pause/stop/clear
+4. Record activity + speaker
+5. Check session limits       → auto-pause if > 8 rapid replies
+6. evaluateSleep()            → "sleep" | "slow" | "short" | null
+7. recordMessage()            → topic fatigue detection
+8. computeDelay()             → reading time × inactivity × sleep × fatigue × jitter
+9. shouldIgnore/Forget        → probabilistic filtering
+10. shouldReact/Hesitate/Burst → behavior rolls
+11. Pick reply style          → weighted random from config
+12. Strip bot mentions        → removes @Username, <@userId>
+13. Ruby or Sapphire?         → if ruby_reason: Ruby.generate(), else Sapphire.askStream()
+14. applyTypo() / swap        → keyboard adjacency simulation
+15. Assemble RespondCommand   → with all behavior annotations
+```
 
-## Features
+### Decision Engine (`src/brain.ts`, 590 lines)
 
-### Streaming + First-Token Typing
+The Brain is a state machine that returns typed `Decision[]` objects rather than calling commands directly. Decisions include `respond`, `ignore`, `pause`, `unpause`, `clear`, and `forgot`. This keeps the brain testable and decoupled from the WebSocket transport.
 
-Emerald streams from Sapphire's SSE endpoint. The first token triggers an immediate `TypingCommand` to the bot — the user sees "typing..." before the model has finished generating.
+**Spontaneous messages:** A per-client timer fires every 5 minutes. On each tick, there's a 12% chance to generate a message in a channel where the bot was recently active. These are generated via Ruby (Markov chain) for low-latency, bypassing the LLM entirely.
 
-### Centralized Behavior Config
+### Behavior System
 
-All behavior decisions live in Emerald's `config.yml`:
-- Typo chance & layout (azerty/qwerty)
-- Letter swap chance
-- Burst chance & delays
-- Hesitation chance & word list
-- Sleep schedules & timezone
-- Topic fatigue thresholds
-- Voice message chance
-- Forget chance
+**Sleep** (`src/behavior/sleep.ts`): Evaluates time-of-day schedules with midnight-crossing support. Three modes: `sleep` (ignore all but mentions), `slow` (3-5× delay), `short` (+30% ignore chance). The config.example.yml defines 6 daily periods.
 
-### Ruby Markov Chain Integration
+**Mannerisms** (`src/behavior/mannerisms.ts`): All human-like timing and probability:
+- `computeDelay()` — starts with trigger-specific base delay, multiplies by reading time (text length / 500), inactivity warmup (up to 5× after 10 min idle), sleep mode, fatigue, and jitter (0.5-2×)
+- `shouldIgnore()` — trigger-type dependent, boosted by sleep and fatigue
+- `shouldReact()` — probability check, capped at 2% during slow/short sleep
+- `shouldHesitate()` — 15% chance to prepend "uh...", "um...", "well...", etc.
+- `shouldForget()` — 3% chance to silently drop the message
 
-Every message is trained into Ruby's Markov chain. When configured, triggers like `random` or `spontaneous` use Ruby instead of the LLM — generating context-free, human-like messages at near-zero latency.
+**Typos** (`src/behavior/typo.ts`): Keyboard adjacency maps for AZERTY and QWERTY. Replaces one letter in a random word (6% chance) or swaps adjacent letters (4% chance). Returns original and corrected word so the bot can optionally send a correction message.
 
-### Debug Mode
+**Burst** (`src/behavior/burst.ts`): 15% chance to split a response into 2-3 fragments with configured delays between them. Bot handles the actual text splitting.
 
-When `debug: true` is set on a `MessageEvent`, Sapphire returns token counts, timing, emotion state, and classification confidence. Emerald forwards these as `debugStats` in the respond command.
+### State Management (`src/state/state.ts`, 264 lines)
 
-## Protocol
+All state is in-memory Maps with no persistence. Key tracking:
+- **Cooldowns:** per-channel `lastReply` timestamps for rate limiting
+- **Activity:** per-channel `{ lastMessage, lastBotActivity, responseCount }`
+- **Sessions:** per-channel pause/queue for session limits (8 rapid replies → 30s pause)
+- **Follow-ups:** tracks last speaker per channel, budgets 3 consecutive follow-ups within 15s windows
+- **Pruning:** periodic cleanup of entries older than 1 hour (every 5 min)
 
-### Events (Bot → Emerald)
+### Trigger Evaluation (`src/state/trigger.ts`, 193 lines)
 
-| Event | Description |
-|-------|-------------|
-| `MessageEvent` | `{ type: "message", id, client, channel, user, text, timestamp, isDM, mentions?, debug? }` |
-| `ReadyEvent` | `{ type: "ready", client, userId, username }` |
-| `BotMessageEvent` | `{ type: "bot_message", client, channel, text, timestamp }` |
-| `PresenceEvent` | `{ type: "presence", client, status }` |
+Pure-functional evaluation chain with priority order:
+1. Commands (`-stop`, `-start`, `-clear`)
+2. Self-messages (skip)
+3. **Mentions** → immediate trigger, unpauses
+4. **DMs** → immediate trigger, unpauses
+5. Paused state check
+6. Cooldown check
+7. **Name match** → any configured name in text
+8. **Keyword match** → probabilistic (`keyword_chance`)
+9. **Follow-up** → bot was last speaker, within window, under budget
+10. **Random** → flat 1.5% chance
 
-### Commands (Emerald → Bot)
+### Topic Fatigue (`src/state/topic-fatigue.ts`, 68 lines)
 
-| Command | Description |
-|---------|-------------|
-| `RespondCommand` | Response text with optional voice, debug stats, burst plan, hesitation |
-| `TypingCommand` | Show typing indicator in channel |
-| `SetPresenceCommand` | Update bot status/activity |
-| `SpontaneousCommand` | Trigger spontaneous message generation |
-| `ForgotCommand` | Silently drop the message |
+Per-channel word frequency tracking. Extracts words ≥4 characters from each message. When a word appears ≥3 times in the window (default 100 words), the bot gets "bored": delay multiplier scales up (up to 5×), ignore bonus adds +15%.
+
+### Sapphire Client (`src/sapphire-client.ts`, 172 lines)
+
+HTTP client for the LLM gateway. Two modes:
+- `ask()` — non-streaming POST to `/v1/respond`
+- `askStream()` — SSE streaming, calls `onChunk()` per token, returns final metadata
+
+SSE parsing is custom line-by-line. The final JSON metadata event is the last `data:` line before `[DONE]`.
+
+### Ruby Client (`src/ruby-client.ts`, 42 lines)
+
+Fire-and-forget HTTP client for Markov chain:
+- `train(event)` — POST to `/train`, errors silently caught
+- `generate(seed?, maxLength?, channelId?)` — POST to `/generate`
+
+Used for "ambient" messages (random and spontaneous triggers) where LLM latency is unnecessary.
+
+### WebSocket Protocol (`src/protocol.ts`, 152 lines)
+
+**Events (Bot → Emerald):**
+| Type | Fields |
+|------|--------|
+| `MessageEvent` | `id, client, channel, user, username?, text, timestamp, isDM, mentions?, debug?` |
+| `ReadyEvent` | `client, userId, username` |
+| `BotMessageEvent` | `client, channel, text, timestamp` |
+| `PresenceEvent` | `client, status` |
+
+**Commands (Emerald → Bot):**
+| Type | Fields |
+|------|--------|
+| `RespondCommand` | Full response + hesitationWord, burstPlan, typoCorrection, letterSwap, react, voice, debugStats |
+| `TypingCommand` | `channel, duration` |
+| `SetPresenceCommand` | `status, text?, activityType?` |
+| `SpontaneousCommand` | `channel, sessionId` |
+| `ForgotCommand` | `channel` |
+
+Wire format: `{ event: "in", payload: InEvent }` → `{ event: "command", command: OutCommand }`
 
 ## Configuration
 
@@ -149,3 +206,14 @@ npm run dev
 # Production (PM2)
 npm run start
 ```
+
+## Stats
+
+| Metric | Value |
+|--------|-------|
+| Source files | 15 |
+| Lines of code | 2,660 |
+| Runtime deps | `ws`, `js-yaml` |
+| Build tool | esbuild → `self-cli.cjs` |
+| Message pipeline stages | ~15 per request |
+| Simulated behaviors | 10 (delay, ignore, forget, hesitation, typo, swap, reaction, voice, follow-up, burst, fatigue) |
