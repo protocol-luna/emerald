@@ -10,42 +10,42 @@ Emerald is the brain and decision-making service for the Luna Protocol ecosystem
 2. Bots forward user messages as `MessageEvent`s (optionally with `debug: true`)
 3. Emerald evaluates behavior rules (burst, typo, sleep, mannerisms, voice chance)
 4. Emerald strips bot mentions (`@Kalupso`, `<@userId>`) from the text
-5. Emerald calls Sapphire's `/v1/respond` via **streaming** (`askStream`) — the response arrives token by token
-6. **On the first token**, Emerald sends a `TypingCommand` to the bot — the typing indicator appears immediately
+5. Emerald calls Sapphire's `/v1/respond` via **streaming** (`askStream`) -- the response arrives token by token
+6. **On the first token**, Emerald sends a `TypingCommand` to the bot -- the typing indicator appears immediately
 7. Remaining tokens are buffered; when complete, Sapphire returns final metadata (text, label, emotion, debug stats)
 8. Emerald processes the response (applies typo/swap behavior, maps snake_case debug stats to camelCase)
 9. Emerald sends a `RespondCommand` back to the bot with `responseText`, optional `voice` flag, and optional `debugStats`
 10. The bot sends the response text to the platform (optionally as a voice message if `voice: true`)
-11. If the stream output was degenerate, Sapphire discards it — no respond command is sent, typing expires naturally
+11. If the stream output was degenerate, Sapphire discards it -- no respond command is sent, typing expires naturally
 
 ## Components
 
 ### Core
 
-- **`src/server.ts`** — WebSocket server that handles bot connections, message events, and sends commands
-- **`src/brain.ts`** — Central decision engine: evaluates behavior rules, calls Sapphire via streaming, applies typo/swap, routes decisions
-- **`src/sapphire-client.ts`** — HTTP client for communicating with Sapphire (`ask` for non-streaming, `askStream` for SSE streaming)
-- **`src/protocol.ts`** — Type definitions for WebSocket messages (events & commands) including `debug`, `responseText`, `voice`, `BehaviorDebug`
-- **`src/config.ts`** — Configuration management (YAML-based)
+- **`src/server.ts`** -- WebSocket server that handles bot connections, message events, and sends commands
+- **`src/brain.ts`** -- Central decision engine: evaluates behavior rules, calls Sapphire via streaming, applies typo/swap, routes decisions
+- **`src/sapphire-client.ts`** -- HTTP client for communicating with Sapphire (`ask` for non-streaming, `askStream` for SSE streaming)
+- **`src/protocol.ts`** -- Type definitions for WebSocket messages (events & commands) including `debug`, `responseText`, `voice`, `BehaviorDebug`
+- **`src/config.ts`** -- Configuration management (YAML-based)
 
 ### Behavior
 
-- **`src/behavior/sleep.ts`** — Sleep schedule behavior
-- **`src/behavior/mannerisms.ts`** — Mannerism pattern injection (hesitation, burst, reactions)
-- **`src/behavior/burst.ts`** — Burst message behavior
-- **`src/behavior/typo.ts`** — Typo/letter-swap behavior and rate limiting
+- **`src/behavior/sleep.ts`** -- Sleep schedule behavior
+- **`src/behavior/mannerisms.ts`** -- Mannerism pattern injection (hesitation, burst, reactions)
+- **`src/behavior/burst.ts`** -- Burst message behavior
+- **`src/behavior/typo.ts`** -- Typo/letter-swap behavior and rate limiting
 
 ### State
 
-- **`src/state/state.ts`** — State management (activity tracking, session limits)
-- **`src/state/trigger.ts`** — Trigger evaluation (mentions, DMs, names, keywords, random)
-- **`src/state/topic-fatigue.ts`** — Topic fatigue tracking
+- **`src/state/state.ts`** -- State management (activity tracking, session limits)
+- **`src/state/trigger.ts`** -- Trigger evaluation (mentions, DMs, names, keywords, random)
+- **`src/state/topic-fatigue.ts`** -- Topic fatigue tracking
 
 ## Features
 
 ### Streaming + First-Token Typing
 
-Instead of waiting for the full LLM response, Emerald streams from Sapphire's SSE endpoint. The first token triggers an immediate `TypingCommand` to the bot — the user sees "typing..." before the model has finished generating.
+Instead of waiting for the full LLM response, Emerald streams from Sapphire's SSE endpoint. The first token triggers an immediate `TypingCommand` to the bot -- the user sees "typing..." before the model has finished generating.
 
 ### Centralized Behavior Config
 
@@ -71,18 +71,18 @@ Bot mentions (`@Kalupso`, `<@userId>`) are stripped from the text before sending
 
 ### Events (Bot → Emerald)
 
-- `MessageEvent` — `{ type: "message", id, client, channel, user, text, timestamp, isDM, mentions?, debug? }`
-- `ReadyEvent` — `{ type: "ready", client, userId, username }`
-- `BotMessageEvent` — `{ type: "bot_message", client, channel, text, timestamp }`
-- `PresenceEvent` — `{ type: "presence", client, status }`
+- `MessageEvent` -- `{ type: "message", id, client, channel, user, text, timestamp, isDM, mentions?, debug? }`
+- `ReadyEvent` -- `{ type: "ready", client, userId, username }`
+- `BotMessageEvent` -- `{ type: "bot_message", client, channel, text, timestamp }`
+- `PresenceEvent` -- `{ type: "presence", client, status }`
 
 ### Commands (Emerald → Bot)
 
-- `RespondCommand` — `{ type: "respond", id, channel, text, responseText, delay, replyTo, replyStyle, hesitationWord?, burstPlan?, typoCorrection?, react?, voice?, sessionId?, debugStats? }`
-- `TypingCommand` — `{ type: "typing", id, channel, duration }`
-- `SetPresenceCommand` — `{ type: "set_presence", id, status, text?, activityType? }`
-- `SpontaneousCommand` — `{ type: "spontaneous", id, channel, sessionId }`
-- `ForgotCommand` — `{ type: "forgot", id, channel }`
+- `RespondCommand` -- `{ type: "respond", id, channel, text, responseText, delay, replyTo, replyStyle, hesitationWord?, burstPlan?, typoCorrection?, react?, voice?, sessionId?, debugStats? }`
+- `TypingCommand` -- `{ type: "typing", id, channel, duration }`
+- `SetPresenceCommand` -- `{ type: "set_presence", id, status, text?, activityType? }`
+- `SpontaneousCommand` -- `{ type: "spontaneous", id, channel, sessionId }`
+- `ForgotCommand` -- `{ type: "forgot", id, channel }`
 
 ### DebugStats
 

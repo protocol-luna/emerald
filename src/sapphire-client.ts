@@ -142,7 +142,7 @@ export class SapphireClient {
 						continue;
 					}
 				} catch {
-					/* not JSON — content delta */
+					/* not JSON -- content delta */
 				}
 
 				if (firstChunk) {
