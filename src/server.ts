@@ -1,6 +1,7 @@
 import { WebSocket, WebSocketServer } from "ws";
 import { Brain } from "./brain";
 import type { EmeraldConfig } from "./config";
+import { EmeraldDB } from "./db";
 import type { InEvent, OutCommand, WsMessage } from "./protocol";
 
 type BotConnection = {
@@ -11,15 +12,22 @@ type BotConnection = {
 export class EmeraldServer {
 	private wss: WebSocketServer;
 	private brain: Brain;
+	private db: EmeraldDB;
+	private pruneTimer: ReturnType<typeof setInterval> | null = null;
 	private connections = new Map<string, BotConnection>();
 
 	constructor(config: EmeraldConfig) {
-		this.brain = new Brain(config, (cmd) => this.broadcastCommand(cmd));
+		this.db = new EmeraldDB(config.db_path ?? "emerald.db");
+		this.brain = new Brain(config, (cmd) => this.broadcastCommand(cmd), this.db);
 		this.wss = new WebSocketServer({ port: config.port });
 	}
 
 	start() {
 		this.brain.start();
+		this.pruneTimer = setInterval(
+			() => this.db.prune(7 * 86400),
+			3600000,
+		);
 
 		this.wss.on("connection", (ws) => {
 			let clientId = "";
@@ -83,7 +91,9 @@ export class EmeraldServer {
 
 	stop() {
 		this.brain.stop();
+		if (this.pruneTimer) clearInterval(this.pruneTimer);
 		this.wss.close();
+		this.db.close();
 	}
 
 	sendCommand(clientId: string, command: OutCommand) {

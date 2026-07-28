@@ -12,6 +12,7 @@ import { evaluateSleep } from "./behavior/sleep";
 import { applyLetterSwap, applyTypo } from "./behavior/typo";
 import { EmotionState } from "./behavior/emotion-state";
 import type { EmeraldConfig } from "./config";
+import type { EmeraldDB } from "./db";
 import type {
 	DebugStats,
 	InEvent,
@@ -64,11 +65,12 @@ export class Brain {
 	private spontaneousTimers = new Map<string, ReturnType<typeof setInterval>>();
 	private pruneTimer: ReturnType<typeof setInterval> | null = null;
 	private broadcastCommand: ((cmd: OutCommand) => void) | null = null;
-	private emotionState = new EmotionState();
+	private emotionState!: EmotionState;
 
 	constructor(
 		config: EmeraldConfig,
 		broadcastCommand?: (cmd: OutCommand) => void,
+		db?: EmeraldDB,
 	) {
 		this.config = config;
 		this.sapphire = new SapphireClient(config);
@@ -76,6 +78,7 @@ export class Brain {
 			this.ruby = new RubyClient(config);
 		}
 		this.broadcastCommand = broadcastCommand ?? null;
+		this.emotionState = new EmotionState(db ?? null);
 	}
 
 	start() {
@@ -348,12 +351,12 @@ export class Brain {
 
 		const sessionId = `${event.client}:${event.channel}`;
 		const emo = this.emotionState.get(sessionId);
-		const emoIgnoreBonus = Math.max(0, -emo.valence * 0.3);
-		const emoForgetBonus = Math.max(0, -emo.valence * 0.2);
-		const emoDelayMult = Math.max(0.5, 1.0 - emo.arousal * 0.25);
-		const emoHesitationMult = Math.max(0.5, 1.0 + emo.arousal * 0.4);
-		const emoBurstMult = Math.max(0.5, 1.0 + emo.arousal * 0.4);
-		const emoTypoMult = Math.max(0.5, 1.0 + emo.arousal * 0.3);
+		const emoIgnoreBonus = Math.max(0, -emo.valence * 3);
+		const emoForgetBonus = Math.max(0, -emo.valence * 2);
+		const emoDelayMult = Math.max(0.5, 1.0 - emo.arousal * 2.5);
+		const emoHesitationMult = Math.max(0.5, 1.0 + emo.arousal * 4);
+		const emoBurstMult = Math.max(0.5, 1.0 + emo.arousal * 4);
+		const emoTypoMult = Math.max(0.5, 1.0 + emo.arousal * 3);
 
 		if (
 			shouldIgnore(
@@ -458,6 +461,8 @@ export class Brain {
 						tokensPerSecond: 0,
 						emotionStateValence: 0,
 						emotionStateArousal: 0,
+						prevEmotionStateValence: 0,
+						prevEmotionStateArousal: 0,
 						classificationLabel: "",
 						classificationConfidence: 0,
 						messageValence: 0,
@@ -502,6 +507,7 @@ export class Brain {
 					},
 				);
 				responseText = result.text.replace(/^[^:]+:\s*/, "");
+				const prevEmo = this.emotionState.get(sessionId);
 				const updatedEmo = this.emotionState.update(sessionId, result.valence, result.arousal);
 				if (debugMode && result.debugPromptTokens !== undefined) {
 					debugStats = {
@@ -511,6 +517,8 @@ export class Brain {
 						tokensPerSecond: result.debugTokensPerSecond ?? 0,
 						emotionStateValence: updatedEmo.valence,
 						emotionStateArousal: updatedEmo.arousal,
+						prevEmotionStateValence: prevEmo.valence,
+						prevEmotionStateArousal: prevEmo.arousal,
 						classificationLabel: result.label,
 						classificationConfidence: result.debugClassificationConfidence ?? 0,
 						messageValence: result.valence,

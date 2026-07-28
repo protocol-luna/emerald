@@ -22,6 +22,7 @@ export type ReplyStyleConfig = {
 
 export type EmeraldConfig = {
 	port: number;
+	db_path?: string;
 
 	sapphire_host: string;
 	sapphire_port: number;
