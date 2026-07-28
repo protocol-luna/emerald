@@ -26,11 +26,19 @@ export class RubyClient {
 		}
 	}
 
-	async generate(seed?: string, maxLength = 30, channelId?: string): Promise<string> {
+	async generate(
+		seed?: string,
+		maxLength = 30,
+		channelId?: string,
+	): Promise<string> {
 		const resp = await fetch(`${this.base}/generate`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ seed, max_length: maxLength, channel_id: channelId }),
+			body: JSON.stringify({
+				seed,
+				max_length: maxLength,
+				channel_id: channelId,
+			}),
 		});
 		if (!resp.ok) {
 			const errText = await resp.text().catch(() => "");

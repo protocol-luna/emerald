@@ -42,7 +42,9 @@ export class SapphireClient {
 		});
 		if (!resp.ok) {
 			const errText = await resp.text().catch(() => "");
-			throw new Error(`sapphire error ${resp.status}: ${errText.slice(0, 200)}`);
+			throw new Error(
+				`sapphire error ${resp.status}: ${errText.slice(0, 200)}`,
+			);
 		}
 		const raw = (await resp.json()) as Record<string, unknown>;
 		return {
@@ -86,9 +88,12 @@ export class SapphireClient {
 		});
 		if (!resp.ok) {
 			const errText = await resp.text().catch(() => "");
-			throw new Error(`sapphire error ${resp.status}: ${errText.slice(0, 200)}`);
+			throw new Error(
+				`sapphire error ${resp.status}: ${errText.slice(0, 200)}`,
+			);
 		}
 
+		// biome-ignore lint/style/noNonNullAssertion: streaming POST always has body
 		const reader = resp.body!.getReader();
 		const decoder = new TextDecoder();
 		let buf = "";
@@ -110,9 +115,12 @@ export class SapphireClient {
 
 			buf += decoder.decode(value, { stream: true });
 
-			let line: string | null;
-			while ((line = nextLine()) !== null) {
-				if (!line.startsWith("data: ")) continue;
+			let line = nextLine();
+			while (line !== null) {
+				if (!line.startsWith("data: ")) {
+					line = nextLine();
+					continue;
+				}
 				const payload = line.slice(6);
 				if (payload === "[DONE]") break;
 
@@ -126,7 +134,9 @@ export class SapphireClient {
 							valence: obj.valence as number,
 							arousal: obj.arousal as number,
 							debugPromptTokens: obj.prompt_tokens as number | undefined,
-							debugCompletionTokens: obj.completion_tokens as number | undefined,
+							debugCompletionTokens: obj.completion_tokens as
+								| number
+								| undefined,
 							debugTimeMs: obj.time_ms as number | undefined,
 							debugTokensPerSecond: obj.tokens_per_second as number | undefined,
 							debugEmotionStateValence: obj.emotion_state_valence as
@@ -149,6 +159,7 @@ export class SapphireClient {
 					firstChunk = false;
 				}
 				onChunk(payload);
+				line = nextLine();
 			}
 
 			if (line === "[DONE]") break;

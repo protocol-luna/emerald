@@ -71,7 +71,11 @@ export class BrainState {
 		this.pausedBy = client;
 	}
 
-	isOnCooldown(client: string, channel: string, cooldownSeconds: number): boolean {
+	isOnCooldown(
+		client: string,
+		channel: string,
+		cooldownSeconds: number,
+	): boolean {
 		const entry = this.cooldowns.get(this._k(client, channel));
 		if (!entry) return false;
 		return Date.now() - entry.lastReply < cooldownSeconds * 1000;
@@ -98,7 +102,10 @@ export class BrainState {
 	}
 
 	recordSpeaker(client: string, channel: string, userId: string) {
-		this.lastSpeaker.set(this._k(client, channel), { userId, lastSpoke: Date.now() });
+		this.lastSpeaker.set(this._k(client, channel), {
+			userId,
+			lastSpoke: Date.now(),
+		});
 	}
 
 	getLastSpeaker(key: string): string | undefined {

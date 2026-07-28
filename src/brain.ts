@@ -64,7 +64,10 @@ export class Brain {
 	private pruneTimer: ReturnType<typeof setInterval> | null = null;
 	private broadcastCommand: ((cmd: OutCommand) => void) | null = null;
 
-	constructor(config: EmeraldConfig, broadcastCommand?: (cmd: OutCommand) => void) {
+	constructor(
+		config: EmeraldConfig,
+		broadcastCommand?: (cmd: OutCommand) => void,
+	) {
 		this.config = config;
 		this.sapphire = new SapphireClient(config);
 		if (config.ruby_enabled) {
@@ -122,7 +125,13 @@ export class Brain {
 
 		const eligibleChannels: string[] = [];
 		for (const [key] of this.state.botActivity) {
-			if (!this.state.isRecentBotActivity(key, this.config.spontaneous_channel_window_ms)) continue;
+			if (
+				!this.state.isRecentBotActivity(
+					key,
+					this.config.spontaneous_channel_window_ms,
+				)
+			)
+				continue;
 			const lastSpeaker = this.state.getLastSpeaker(key);
 			if (lastSpeaker && lastSpeaker !== botUser.userId) {
 				const colon = key.indexOf(":");
@@ -132,7 +141,8 @@ export class Brain {
 
 		if (eligibleChannels.length === 0) return;
 
-		const channel = eligibleChannels[Math.floor(Math.random() * eligibleChannels.length)];
+		const channel =
+			eligibleChannels[Math.floor(Math.random() * eligibleChannels.length)];
 		const sessionId = `${client}:${channel}`;
 
 		setImmediate(() => {
@@ -140,7 +150,11 @@ export class Brain {
 		});
 	}
 
-	private async emitSpontaneous(client: string, channel: string, sessionId: string) {
+	private async emitSpontaneous(
+		_client: string,
+		channel: string,
+		sessionId: string,
+	) {
 		if (this.ruby && this.config.ruby_reasons.includes("spontaneous")) {
 			try {
 				const text = await this.ruby.generate(undefined, 20, channel);
@@ -287,7 +301,11 @@ export class Brain {
 		}
 
 		if (trigger.reason === "follow-up") {
-			this.state.markFollowUp(event.client, event.channel, this.config.follow_up_window);
+			this.state.markFollowUp(
+				event.client,
+				event.channel,
+				this.config.follow_up_window,
+			);
 		}
 
 		if (this.state.isSessionPaused(event.client, event.channel)) {
@@ -405,17 +423,21 @@ export class Brain {
 		const sessionId = `${event.client}:${event.channel}`;
 		const debugMode = event.debug ?? false;
 
-		const cleanText = this.stripMentions(event.text, botUser.userId, botUser.username);
+		const cleanText = this.stripMentions(
+			event.text,
+			botUser.userId,
+			botUser.username,
+		);
 
 		let responseText = "";
 		let debugStats: DebugStats | undefined;
 		let typingSent = false;
 		const useRuby =
-			this.ruby &&
-			this.config.ruby_reasons.includes(trigger.reason ?? "");
+			this.ruby && this.config.ruby_reasons.includes(trigger.reason ?? "");
 		try {
 			if (useRuby) {
 				const seed = event.text.split(/\s+/).slice(-2).join(" ");
+				// biome-ignore lint/style/noNonNullAssertion: guarded by useRuby check
 				responseText = await this.ruby!.generate(seed, 25);
 				if (debugMode) {
 					debugStats = {
@@ -524,8 +546,16 @@ export class Brain {
 
 		let typoApplied = false;
 		let swapApplied = false;
-		let typoResult: { text: string; original: string; corrected: string } | null = null;
-		let swapResult: { text: string; original: string; corrected: string } | null = null;
+		let typoResult: {
+			text: string;
+			original: string;
+			corrected: string;
+		} | null = null;
+		let swapResult: {
+			text: string;
+			original: string;
+			corrected: string;
+		} | null = null;
 
 		if (Math.random() < this.config.typo_chance) {
 			const result = applyTypo(processedText, this.config.typo_layout);
@@ -555,7 +585,9 @@ export class Brain {
 
 		const correctionDelayMin = this.config.typo_correction_delay_min;
 		const correctionDelayMax = this.config.typo_correction_delay_max;
-		const correctionDelay = correctionDelayMin + Math.random() * (correctionDelayMax - correctionDelayMin);
+		const correctionDelay =
+			correctionDelayMin +
+			Math.random() * (correctionDelayMax - correctionDelayMin);
 
 		const respondCommand: RespondCommand = {
 			type: "respond",
@@ -621,7 +653,11 @@ export class Brain {
 		return { messageReference: false, mentionRepliedUser: false };
 	}
 
-	private stripMentions(text: string, userId: string, username: string): string {
+	private stripMentions(
+		text: string,
+		userId: string,
+		username: string,
+	): string {
 		let result = text;
 		result = result.replace(new RegExp(`<@!?${userId}>`, "g"), "");
 		if (username) {

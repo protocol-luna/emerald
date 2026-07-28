@@ -117,7 +117,9 @@ export function evaluateMessage(
 	}
 
 	// Cooldown (skip for follow-ups)
-	if (state.isOnCooldown(event.client, event.channel, config.cooldown_seconds)) {
+	if (
+		state.isOnCooldown(event.client, event.channel, config.cooldown_seconds)
+	) {
 		return {
 			shouldRespond: false,
 			reason: null,
