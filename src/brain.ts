@@ -123,35 +123,36 @@ export class Brain {
 		);
 		if (sleepBehavior === "sleep") return;
 
-		// find channels where the bot was recently active
-		// but a user was the last speaker (don't talk into the void)
 		const botUser = this.botUsers.get(client);
 		if (!botUser) return;
 
-		const eligibleChannels: string[] = [];
-		for (const [key] of this.state.botActivity) {
-			if (
-				!this.state.isRecentBotActivity(
-					key,
-					this.config.spontaneous_channel_window_ms,
-				)
-			)
-				continue;
+		const now = Date.now();
+		const window = this.config.spontaneous_channel_window_ms;
+		const whitelist = this.config.spontaneous_whitelist;
+		const whitelistChannels =
+			whitelist === "*" ? null : whitelist.split(",").map((c) => c.trim());
+
+		const eligible: Array<{ channel: string; lastMessage: number }> = [];
+		for (const [key, entry] of this.state.activity) {
+			if (now - entry.lastMessage > window) continue;
+			const colon = key.indexOf(":");
+			if (key.slice(0, colon) !== client) continue;
+			const channel = key.slice(colon + 1);
+			if (whitelistChannels && !whitelistChannels.includes(channel)) continue;
 			const lastSpeaker = this.state.getLastSpeaker(key);
-			if (lastSpeaker && lastSpeaker !== botUser.userId) {
-				const colon = key.indexOf(":");
-				eligibleChannels.push(key.slice(colon + 1));
-			}
+			if (!lastSpeaker || lastSpeaker === botUser.userId) continue;
+			eligible.push({ channel, lastMessage: entry.lastMessage });
 		}
 
-		if (eligibleChannels.length === 0) return;
+		if (eligible.length === 0) return;
 
-		const channel =
-			eligibleChannels[Math.floor(Math.random() * eligibleChannels.length)];
-		const sessionId = `${client}:${channel}`;
+		eligible.sort((a, b) => b.lastMessage - a.lastMessage);
+		const top = eligible.slice(0, 3);
+		const picked = top[Math.floor(Math.random() * top.length)];
+		const sessionId = `${client}:${picked.channel}`;
 
 		setImmediate(() => {
-			this.emitSpontaneous(client, channel, sessionId);
+			this.emitSpontaneous(client, picked.channel, sessionId);
 		});
 	}
 

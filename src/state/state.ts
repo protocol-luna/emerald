@@ -242,6 +242,7 @@ export class BrainState {
 			responseCount: 0,
 		};
 		existing.lastMessage = now;
+		existing.responseCount++;
 		this.activity.set(key, existing);
 
 		const entry = this.botActivity.get(key);
