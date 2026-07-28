@@ -10,6 +10,7 @@ import {
 } from "./behavior/mannerisms";
 import { evaluateSleep } from "./behavior/sleep";
 import { applyLetterSwap, applyTypo } from "./behavior/typo";
+import { EmotionState } from "./behavior/emotion-state";
 import type { EmeraldConfig } from "./config";
 import type {
 	DebugStats,
@@ -63,6 +64,7 @@ export class Brain {
 	private spontaneousTimers = new Map<string, ReturnType<typeof setInterval>>();
 	private pruneTimer: ReturnType<typeof setInterval> | null = null;
 	private broadcastCommand: ((cmd: OutCommand) => void) | null = null;
+	private emotionState = new EmotionState();
 
 	constructor(
 		config: EmeraldConfig,
@@ -344,6 +346,15 @@ export class Brain {
 			this.config.topic_fatigue_delay_multiplier,
 		);
 
+		const sessionId = `${event.client}:${event.channel}`;
+		const emo = this.emotionState.get(sessionId);
+		const emoIgnoreBonus = Math.max(0, -emo.valence * 0.3);
+		const emoForgetBonus = Math.max(0, -emo.valence * 0.2);
+		const emoDelayMult = Math.max(0.5, 1.0 - emo.arousal * 0.25);
+		const emoHesitationMult = Math.max(0.5, 1.0 + emo.arousal * 0.4);
+		const emoBurstMult = Math.max(0.5, 1.0 + emo.arousal * 0.4);
+		const emoTypoMult = Math.max(0.5, 1.0 + emo.arousal * 0.3);
+
 		if (
 			shouldIgnore(
 				trigger.reason,
@@ -354,13 +365,13 @@ export class Brain {
 					this.config.topic_fatigue_enabled,
 					this.config.topic_fatigue_threshold,
 					this.config.topic_fatigue_ignore_bonus,
-				),
+				) + emoIgnoreBonus,
 			)
 		) {
 			return [{ type: "ignore", messageId: event.id }];
 		}
 
-		if (shouldForget(this.config.forget_chance, event.isDM, trigger.reason)) {
+		if (shouldForget(this.config.forget_chance + emoForgetBonus, event.isDM, trigger.reason)) {
 			return [
 				{
 					type: "forgot",
@@ -372,7 +383,7 @@ export class Brain {
 
 		const inactivityMs = this.state.getGlobalInactivityMs();
 
-		const delay = computeDelay(
+		let delay = computeDelay(
 			trigger.reason,
 			event.text,
 			this.config.concentration,
@@ -382,6 +393,7 @@ export class Brain {
 			sleepBehavior,
 			fatigueMultiplier,
 		);
+		delay = Math.round(delay * emoDelayMult);
 
 		const _decisions: Decision[] = [];
 
@@ -406,12 +418,12 @@ export class Brain {
 			reactPlan = { emoji, delay: Math.round(reactDelay) };
 		}
 
-		const willHesitate = shouldHesitate(this.config.hesitation_chance);
+		const willHesitate = shouldHesitate(this.config.hesitation_chance * emoHesitationMult);
 		const hesitationWord = willHesitate
 			? pickHesitationWord(this.config.hesitation_words)
 			: undefined;
 
-		const burst = shouldBurst(this.config.burst_chance);
+		const burst = shouldBurst(this.config.burst_chance * emoBurstMult);
 		const burstPlan = burst
 			? planBurst(this.config.burst_delay_min, this.config.burst_delay_max)
 			: undefined;
@@ -420,7 +432,6 @@ export class Brain {
 
 		const replyStyle = this.pickReplyStyle(false);
 
-		const sessionId = `${event.client}:${event.channel}`;
 		const debugMode = event.debug ?? false;
 
 		const cleanText = this.stripMentions(
@@ -491,14 +502,15 @@ export class Brain {
 					},
 				);
 				responseText = result.text.replace(/^[^:]+:\s*/, "");
+				const updatedEmo = this.emotionState.update(sessionId, result.valence, result.arousal);
 				if (debugMode && result.debugPromptTokens !== undefined) {
 					debugStats = {
 						promptTokens: result.debugPromptTokens,
 						completionTokens: result.debugCompletionTokens ?? 0,
 						timeMs: result.debugTimeMs ?? 0,
 						tokensPerSecond: result.debugTokensPerSecond ?? 0,
-						emotionStateValence: result.debugEmotionStateValence ?? 0,
-						emotionStateArousal: result.debugEmotionStateArousal ?? 0,
+						emotionStateValence: updatedEmo.valence,
+						emotionStateArousal: updatedEmo.arousal,
 						classificationLabel: result.label,
 						classificationConfidence: result.debugClassificationConfidence ?? 0,
 						messageValence: result.valence,
@@ -508,15 +520,15 @@ export class Brain {
 						usedRuby: false,
 						inactivityMs,
 						behavior: {
-							typoChance: this.config.typo_chance,
+							typoChance: this.config.typo_chance * emoTypoMult,
 							typoApplied: false,
-							swapChance: this.config.letter_swap_chance,
+							swapChance: this.config.letter_swap_chance * emoTypoMult,
 							swapApplied: false,
-							burstChance: this.config.burst_chance,
+							burstChance: this.config.burst_chance * emoBurstMult,
 							burstApplied: false,
-							hesitationChance: this.config.hesitation_chance,
+							hesitationChance: this.config.hesitation_chance * emoHesitationMult,
 							hesitationApplied: false,
-							forgetChance: this.config.forget_chance,
+							forgetChance: this.config.forget_chance + emoForgetBonus,
 							voiceChance: this.config.voice_message_chance,
 							voiceApplied: false,
 							sleepMode: sleepBehavior,
@@ -557,7 +569,7 @@ export class Brain {
 			corrected: string;
 		} | null = null;
 
-		if (Math.random() < this.config.typo_chance) {
+		if (Math.random() < this.config.typo_chance * emoTypoMult) {
 			const result = applyTypo(processedText, this.config.typo_layout);
 			if (result) {
 				processedText = result.text;
@@ -566,7 +578,7 @@ export class Brain {
 			}
 		}
 
-		if (Math.random() < this.config.letter_swap_chance) {
+		if (Math.random() < this.config.letter_swap_chance * emoTypoMult) {
 			const result = applyLetterSwap(processedText);
 			if (result) {
 				processedText = result.text;
