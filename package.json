@@ -8,6 +8,8 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^13.0.1",
     "js-yaml": "^4.2.0",
     "ws": "^8.18.0"
   },
