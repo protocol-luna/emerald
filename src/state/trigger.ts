@@ -8,6 +8,7 @@ export type TriggerResult = {
 	paused: boolean;
 	stopped: boolean;
 	cleared: boolean;
+	spontaneous: boolean;
 };
 
 export function evaluateMessage(
@@ -36,6 +37,7 @@ export function evaluateMessage(
 			paused: true,
 			stopped: true,
 			cleared: false,
+			spontaneous: false,
 		};
 	}
 	if (text.startsWith("-start")) {
@@ -46,6 +48,7 @@ export function evaluateMessage(
 			paused: false,
 			stopped: false,
 			cleared: false,
+			spontaneous: false,
 		};
 	}
 	if (text.startsWith("-clear")) {
@@ -55,6 +58,17 @@ export function evaluateMessage(
 			paused: false,
 			stopped: false,
 			cleared: true,
+			spontaneous: false,
+		};
+	}
+	if (text.startsWith("-debugspont")) {
+		return {
+			shouldRespond: false,
+			reason: null,
+			paused: false,
+			stopped: false,
+			cleared: false,
+			spontaneous: true,
 		};
 	}
 
@@ -66,6 +80,7 @@ export function evaluateMessage(
 			paused: false,
 			stopped: false,
 			cleared: false,
+			spontaneous: false,
 		};
 	}
 
@@ -81,6 +96,7 @@ export function evaluateMessage(
 			paused: false,
 			stopped: false,
 			cleared: false,
+			spontaneous: false,
 		};
 	}
 
@@ -94,6 +110,7 @@ export function evaluateMessage(
 				paused: false,
 				stopped: false,
 				cleared: false,
+				spontaneous: false,
 			};
 		}
 		return {
@@ -102,6 +119,7 @@ export function evaluateMessage(
 			paused: false,
 			stopped: false,
 			cleared: false,
+			spontaneous: false,
 		};
 	}
 
@@ -113,6 +131,7 @@ export function evaluateMessage(
 			paused: true,
 			stopped: false,
 			cleared: false,
+			spontaneous: false,
 		};
 	}
 
@@ -126,6 +145,7 @@ export function evaluateMessage(
 			paused: false,
 			stopped: false,
 			cleared: false,
+			spontaneous: false,
 		};
 	}
 
@@ -142,6 +162,7 @@ export function evaluateMessage(
 			paused: false,
 			stopped: false,
 			cleared: false,
+			spontaneous: false,
 		};
 	}
 
@@ -157,6 +178,7 @@ export function evaluateMessage(
 			paused: false,
 			stopped: false,
 			cleared: false,
+			spontaneous: false,
 		};
 	}
 
@@ -172,6 +194,7 @@ export function evaluateMessage(
 			paused: false,
 			stopped: false,
 			cleared: false,
+			spontaneous: false,
 		};
 	}
 
@@ -183,6 +206,7 @@ export function evaluateMessage(
 			paused: false,
 			stopped: false,
 			cleared: false,
+			spontaneous: false,
 		};
 	}
 
@@ -192,5 +216,6 @@ export function evaluateMessage(
 		paused: false,
 		stopped: false,
 		cleared: false,
+		spontaneous: false,
 	};
 }

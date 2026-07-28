@@ -160,22 +160,25 @@ export class Brain {
 		_client: string,
 		channel: string,
 		sessionId: string,
+		immediate = false,
 	) {
 		if (this.ruby && this.config.ruby_reasons.includes("spontaneous")) {
 			try {
-				const text = await this.ruby.generate(undefined, 20, channel);
+				const text = await this.ruby.generate(undefined, 20);
 				if (!text) return;
 
-				const delay = computeDelay(
-					"random",
-					"",
-					this.config.concentration,
-					0,
-					this.config.inactivity_warmup_minutes,
-					this.config.inactivity_warmup_multiplier,
-					null,
-					1,
-				);
+				const delay = immediate
+					? 0
+					: computeDelay(
+							"random",
+							"",
+							this.config.concentration,
+							0,
+							this.config.inactivity_warmup_minutes,
+							this.config.inactivity_warmup_multiplier,
+							null,
+							1,
+						);
 
 				let processedText = text;
 				if (Math.random() < this.config.typo_chance) {
@@ -192,11 +195,6 @@ export class Brain {
 					? pickHesitationWord(this.config.hesitation_words)
 					: undefined;
 
-				const burst = shouldBurst(this.config.burst_chance);
-				const burstPlan = burst
-					? planBurst(this.config.burst_delay_min, this.config.burst_delay_max)
-					: undefined;
-
 				const cmd: RespondCommand = {
 					type: "respond",
 					id: `ruby_spon_${channel}_${Date.now()}`,
@@ -205,7 +203,6 @@ export class Brain {
 					responseText: processedText,
 					delay: Math.round(delay),
 					hesitationWord,
-					burstPlan: burstPlan ?? undefined,
 					sessionId,
 					replyStyle: { messageReference: false, mentionRepliedUser: false },
 				};
@@ -263,10 +260,6 @@ export class Brain {
 		const botUser = this.botUsers.get(event.client);
 		if (!botUser) return [{ type: "ignore", messageId: event.id }];
 
-		if (this.ruby && event.user !== botUser.userId) {
-			this.ruby.train(event);
-		}
-
 		const trigger = evaluateMessage(
 			event,
 			botUser.userId,
@@ -283,12 +276,24 @@ export class Brain {
 			},
 		);
 
+		if (this.ruby && event.user !== botUser.userId && !trigger.stopped && !trigger.cleared && !trigger.spontaneous) {
+			this.ruby.train(event);
+		}
+
 		if (trigger.stopped) {
 			return [{ type: "pause", messageId: event.id, client: event.client }];
 		}
 
 		if (trigger.cleared) {
 			return [{ type: "clear", messageId: event.id }];
+		}
+
+		if (trigger.spontaneous) {
+			const sessionId = `${event.client}:${event.channel}`;
+			setImmediate(() => {
+				this.emitSpontaneous(event.client, event.channel, sessionId, true);
+			});
+			return [{ type: "ignore", messageId: event.id }];
 		}
 
 		if (trigger.paused && !trigger.shouldRespond) {
