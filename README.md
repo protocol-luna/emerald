@@ -21,7 +21,7 @@
   </p>
 </p>
 
-Emerald sits between platform adapters (bots) and the Sapphire LLM gateway, handling behavior evaluation, Sapphire communication, response processing, and connection management. It's the centralized decision engine — bots are thin adapters, all behavior logic lives here.
+Emerald sits between platform adapters (bots) and the Sapphire LLM gateway, handling behavior evaluation, Sapphire communication, response processing, and connection management. It's the centralized decision engine -- bots are thin adapters, all behavior logic lives here.
 
 ```mermaid
 flowchart LR
@@ -38,8 +38,8 @@ flowchart LR
 2. Bots forward user messages as `MessageEvent`s (optionally with `debug: true`)
 3. Emerald evaluates behavior rules (burst, typo, sleep, mannerisms, voice chance)
 4. Emerald strips bot mentions from the text
-5. Emerald calls Sapphire's `/v1/respond` via **streaming** — the response arrives token by token
-6. **On the first token**, Emerald sends a `TypingCommand` to the bot — the typing indicator appears immediately
+5. Emerald calls Sapphire's `/v1/respond` via **streaming** -- the response arrives token by token
+6. **On the first token**, Emerald sends a `TypingCommand` to the bot -- the typing indicator appears immediately
 7. Remaining tokens are buffered; when complete, Sapphire returns final metadata
 8. Emerald processes the response (applies typo/swap behavior, maps debug stats)
 9. Emerald sends a `RespondCommand` back to the bot with `responseText`, optional `voice` flag, and optional `debugStats`
@@ -55,14 +55,14 @@ Emerald is **2,660 lines of TypeScript** across 15 source files, compiled via es
 index.ts
   |-- config.ts (EmeraldConfig, loadConfig)
   |-- server.ts (EmeraldServer)
-       |-- brain.ts (Brain) [590 lines — the core]
+       |-- brain.ts (Brain) [590 lines -- the core]
        |    |-- behavior/sleep.ts      (circadian rhythm)
        |    |-- behavior/mannerisms.ts (delay, ignore, reaction, hesitation, forget)
        |    |-- behavior/burst.ts      (multi-fragment messages)
        |    |-- behavior/typo.ts       (keyboard typo + letter swap)
        |    |-- sapphire-client.ts     (LLM gateway HTTP client)
        |    |-- ruby-client.ts         (Markov chain HTTP client)
-       |    |-- state/state.ts         (BrainState — in-memory state)
+       |    |-- state/state.ts         (BrainState -- in-memory state)
        |    |-- state/topic-fatigue.ts (word repetition tracking)
        |    |-- state/trigger.ts       (trigger evaluation chain)
        |-- protocol.ts                 (all WebSocket message types)
@@ -102,11 +102,11 @@ The Brain is a state machine that returns typed `Decision[]` objects rather than
 **Sleep** (`src/behavior/sleep.ts`): Evaluates time-of-day schedules with midnight-crossing support. Three modes: `sleep` (ignore all but mentions), `slow` (3-5× delay), `short` (+30% ignore chance). The config.example.yml defines 6 daily periods.
 
 **Mannerisms** (`src/behavior/mannerisms.ts`): All human-like timing and probability:
-- `computeDelay()` — starts with trigger-specific base delay, multiplies by reading time (text length / 500), inactivity warmup (up to 5× after 10 min idle), sleep mode, fatigue, and jitter (0.5-2×)
-- `shouldIgnore()` — trigger-type dependent, boosted by sleep and fatigue
-- `shouldReact()` — probability check, capped at 2% during slow/short sleep
-- `shouldHesitate()` — 15% chance to prepend "uh...", "um...", "well...", etc.
-- `shouldForget()` — 3% chance to silently drop the message
+- `computeDelay()` -- starts with trigger-specific base delay, multiplies by reading time (text length / 500), inactivity warmup (up to 5× after 10 min idle), sleep mode, fatigue, and jitter (0.5-2×)
+- `shouldIgnore()` -- trigger-type dependent, boosted by sleep and fatigue
+- `shouldReact()` -- probability check, capped at 2% during slow/short sleep
+- `shouldHesitate()` -- 15% chance to prepend "uh...", "um...", "well...", etc.
+- `shouldForget()` -- 3% chance to silently drop the message
 
 **Typos** (`src/behavior/typo.ts`): Keyboard adjacency maps for AZERTY and QWERTY. Replaces one letter in a random word (6% chance) or swaps adjacent letters (4% chance). Returns original and corrected word so the bot can optionally send a correction message.
 
@@ -142,16 +142,16 @@ Per-channel word frequency tracking. Extracts words ≥4 characters from each me
 ### Sapphire Client (`src/sapphire-client.ts`, 172 lines)
 
 HTTP client for the LLM gateway. Two modes:
-- `ask()` — non-streaming POST to `/v1/respond`
-- `askStream()` — SSE streaming, calls `onChunk()` per token, returns final metadata
+- `ask()` -- non-streaming POST to `/v1/respond`
+- `askStream()` -- SSE streaming, calls `onChunk()` per token, returns final metadata
 
 SSE parsing is custom line-by-line. The final JSON metadata event is the last `data:` line before `[DONE]`.
 
 ### Ruby Client (`src/ruby-client.ts`, 42 lines)
 
 Fire-and-forget HTTP client for Markov chain:
-- `train(event)` — POST to `/train`, errors silently caught
-- `generate(seed?, maxLength?, channelId?)` — POST to `/generate`
+- `train(event)` -- POST to `/train`, errors silently caught
+- `generate(seed?, maxLength?, channelId?)` -- POST to `/generate`
 
 Used for "ambient" messages (random and spontaneous triggers) where LLM latency is unnecessary.
 
