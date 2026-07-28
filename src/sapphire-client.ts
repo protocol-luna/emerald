@@ -149,6 +149,7 @@ export class SapphireClient {
 								| number
 								| undefined,
 						};
+						line = nextLine();
 						continue;
 					}
 				} catch {
