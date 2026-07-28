@@ -29,23 +29,23 @@ export class EmeraldDB {
 		`);
 		this.insertStmt = this.db.prepare(`
 			INSERT INTO emotion_state (key, valence, arousal, updated_at)
-			VALUES (?1, ?2, ?3, unixepoch())
+			VALUES (?, ?, ?, unixepoch())
 			ON CONFLICT(key) DO UPDATE SET
-				valence = ?2,
-				arousal = ?3,
+				valence = ?,
+				arousal = ?,
 				updated_at = unixepoch()
 		`);
 		this.loadAllStmt = this.db.prepare("SELECT key, valence, arousal FROM emotion_state");
 		this.loadOneStmt = this.db.prepare(
-			"SELECT valence, arousal FROM emotion_state WHERE key = ?1",
+			"SELECT valence, arousal FROM emotion_state WHERE key = ?",
 		);
 		this.pruneStmt = this.db.prepare(
-			"DELETE FROM emotion_state WHERE updated_at < unixepoch() - ?1",
+			"DELETE FROM emotion_state WHERE updated_at < unixepoch() - ?",
 		);
 	}
 
 	saveEmotion(key: string, valence: number, arousal: number): void {
-		this.insertStmt.run(key, valence, arousal);
+		this.insertStmt.run(key, valence, arousal, valence, arousal);
 	}
 
 	loadEmotion(key: string): { valence: number; arousal: number } | null {

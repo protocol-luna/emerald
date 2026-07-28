@@ -5,7 +5,9 @@
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=node --format=cjs --packages=external --minify --outfile=self-cli.cjs",
     "start": "node self-cli.cjs",
-    "dev": "tsx watch src/index.ts"
+    "dev": "tsx watch src/index.ts",
+    "test": "bun test tests/emotion-state.test.ts tests/behavior-modulations.test.ts tests/sapphire-stream.test.ts tests/sapphire-client.test.ts tests/brain.test.ts && tsx --test tests-db/db.test.ts",
+    "test:db": "tsx --test tests-db/db.test.ts"
   },
   "dependencies": {
     "@types/better-sqlite3": "^7.6.13",
