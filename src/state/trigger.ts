@@ -117,7 +117,7 @@ export function evaluateMessage(
 	}
 
 	// Cooldown (skip for follow-ups)
-	if (state.isOnCooldown(event.channel, config.cooldown_seconds)) {
+	if (state.isOnCooldown(event.client, event.channel, config.cooldown_seconds)) {
 		return {
 			shouldRespond: false,
 			reason: null,
@@ -159,10 +159,11 @@ export function evaluateMessage(
 	}
 
 	// Follow-up
-	state.recordSpeaker(event.channel, event.user);
-	state.recordActivity(event.channel);
+	state.recordSpeaker(event.client, event.channel, event.user);
+	state.recordActivity(event.client, event.channel);
 
-	if (state.canFollowUp(event.channel, botUserId, config.follow_up_window, 3)) {
+	const channelKey = `${event.client}:${event.channel}`;
+	if (state.canFollowUp(channelKey, botUserId, config.follow_up_window, 3)) {
 		return {
 			shouldRespond: true,
 			reason: "follow-up",

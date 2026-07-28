@@ -62,24 +62,28 @@ export class BrainState {
 		timestamp: number;
 	} | null = null;
 
+	private _k(client: string, channel: string): string {
+		return `${client}:${channel}`;
+	}
+
 	setPaused(client: string, paused: boolean) {
 		this.paused = paused;
 		this.pausedBy = client;
 	}
 
-	isOnCooldown(channel: string, cooldownSeconds: number): boolean {
-		const entry = this.cooldowns.get(channel);
+	isOnCooldown(client: string, channel: string, cooldownSeconds: number): boolean {
+		const entry = this.cooldowns.get(this._k(client, channel));
 		if (!entry) return false;
 		return Date.now() - entry.lastReply < cooldownSeconds * 1000;
 	}
 
-	markReplied(channel: string) {
-		this.cooldowns.set(channel, { lastReply: Date.now() });
+	markReplied(client: string, channel: string) {
+		this.cooldowns.set(this._k(client, channel), { lastReply: Date.now() });
 	}
 
-	markBotActivity(channel: string) {
+	markBotActivity(client: string, channel: string) {
 		const now = Date.now();
-		this.botActivity.set(channel, { timestamp: now });
+		this.botActivity.set(this._k(client, channel), { timestamp: now });
 		this.globalLastActivity = now;
 	}
 
@@ -87,50 +91,52 @@ export class BrainState {
 		return Date.now() - this.globalLastActivity;
 	}
 
-	isRecentBotActivity(channel: string, window: number): boolean {
-		const entry = this.botActivity.get(channel);
+	isRecentBotActivity(key: string, window: number): boolean {
+		const entry = this.botActivity.get(key);
 		if (!entry) return false;
 		return Date.now() - entry.timestamp < window;
 	}
 
-	recordSpeaker(channel: string, userId: string) {
-		this.lastSpeaker.set(channel, { userId, lastSpoke: Date.now() });
+	recordSpeaker(client: string, channel: string, userId: string) {
+		this.lastSpeaker.set(this._k(client, channel), { userId, lastSpoke: Date.now() });
 	}
 
-	getLastSpeaker(channel: string): string | undefined {
-		return this.lastSpeaker.get(channel)?.userId;
+	getLastSpeaker(key: string): string | undefined {
+		return this.lastSpeaker.get(key)?.userId;
 	}
 
 	canFollowUp(
-		channel: string,
+		key: string,
 		botId: string,
 		followUpWindow: number,
 		followUpMax: number,
 	): boolean {
-		if (!this.isRecentBotActivity(channel, followUpWindow)) return false;
-		if (this.getLastSpeaker(channel) !== botId) return false;
+		if (!this.isRecentBotActivity(key, followUpWindow)) return false;
+		if (this.getLastSpeaker(key) !== botId) return false;
 
-		const followUp = this.followUpMap.get(channel);
+		const followUp = this.followUpMap.get(key);
 		const count = followUp?.count ?? 0;
 		return count < followUpMax;
 	}
 
-	markFollowUp(channel: string, followUpWindow: number) {
+	markFollowUp(client: string, channel: string, followUpWindow: number) {
+		const key = this._k(client, channel);
 		const now = Date.now();
-		const existing = this.followUpMap.get(channel);
+		const existing = this.followUpMap.get(key);
 		const count = (existing?.count ?? 0) + 1;
-		this.followUpMap.set(channel, { lastFollowUp: now, count });
+		this.followUpMap.set(key, { lastFollowUp: now, count });
 
 		setTimeout(() => {
-			const entry = this.followUpMap.get(channel);
+			const entry = this.followUpMap.get(key);
 			if (entry) {
 				entry.count = Math.max(0, entry.count - 1);
-				if (entry.count === 0) this.followUpMap.delete(channel);
+				if (entry.count === 0) this.followUpMap.delete(key);
 			}
 		}, followUpWindow);
 	}
 
 	checkSessionLimit(
+		client: string,
 		channel: string,
 		sessionMessageLimit: number,
 		sessionPauseSeconds: number,
@@ -146,7 +152,8 @@ export class BrainState {
 			}>,
 		) => void,
 	): boolean {
-		let session = this.sessions.get(channel);
+		const key = this._k(client, channel);
+		let session = this.sessions.get(key);
 		if (!session) {
 			session = {
 				count: 0,
@@ -154,7 +161,7 @@ export class BrainState {
 				lastMessage: Date.now(),
 				queuedMessages: [],
 			};
-			this.sessions.set(channel, session);
+			this.sessions.set(key, session);
 		}
 
 		if (Date.now() - session.lastMessage > sessionResetMinutes * 60000) {
@@ -170,7 +177,7 @@ export class BrainState {
 		if (session.count >= sessionMessageLimit) {
 			session.paused = true;
 			session.pauseTimeout = setTimeout(() => {
-				const s = this.sessions.get(channel);
+				const s = this.sessions.get(key);
 				if (s) {
 					s.paused = false;
 					s.count = 0;
@@ -185,12 +192,13 @@ export class BrainState {
 		return false;
 	}
 
-	isSessionPaused(channel: string): boolean {
-		const session = this.sessions.get(channel);
+	isSessionPaused(client: string, channel: string): boolean {
+		const session = this.sessions.get(this._k(client, channel));
 		return session?.paused ?? false;
 	}
 
 	queueMessage(
+		client: string,
 		channel: string,
 		text: string,
 		user: string,
@@ -198,7 +206,8 @@ export class BrainState {
 		timestamp?: number,
 		mentions?: string[],
 	) {
-		let session = this.sessions.get(channel);
+		const key = this._k(client, channel);
+		let session = this.sessions.get(key);
 		if (!session) {
 			session = {
 				count: 0,
@@ -206,7 +215,7 @@ export class BrainState {
 				lastMessage: Date.now(),
 				queuedMessages: [],
 			};
-			this.sessions.set(channel, session);
+			this.sessions.set(key, session);
 		}
 		session.queuedMessages.push({
 			text,
@@ -217,17 +226,18 @@ export class BrainState {
 		});
 	}
 
-	recordActivity(channel: string) {
+	recordActivity(client: string, channel: string) {
+		const key = this._k(client, channel);
 		const now = Date.now();
-		const existing = this.activity.get(channel) ?? {
+		const existing = this.activity.get(key) ?? {
 			lastMessage: 0,
 			lastBotActivity: 0,
 			responseCount: 0,
 		};
 		existing.lastMessage = now;
-		this.activity.set(channel, existing);
+		this.activity.set(key, existing);
 
-		const entry = this.botActivity.get(channel);
+		const entry = this.botActivity.get(key);
 		if (!entry || now - entry.timestamp > 300000) {
 			this.globalLastActivity = now;
 		}
@@ -235,14 +245,14 @@ export class BrainState {
 
 	pruneActivity(maxAge: number) {
 		const now = Date.now();
-		for (const [channel, entry] of this.activity) {
+		for (const [key, entry] of this.activity) {
 			if (now - entry.lastMessage > maxAge) {
-				this.activity.delete(channel);
+				this.activity.delete(key);
 			}
 		}
-		for (const [channel, entry] of this.botActivity) {
+		for (const [key, entry] of this.botActivity) {
 			if (now - entry.timestamp > maxAge) {
-				this.botActivity.delete(channel);
+				this.botActivity.delete(key);
 			}
 		}
 	}

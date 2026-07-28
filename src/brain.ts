@@ -121,11 +121,12 @@ export class Brain {
 		if (!botUser) return;
 
 		const eligibleChannels: string[] = [];
-		for (const [channel] of this.state.botActivity) {
-			if (!this.state.isRecentBotActivity(channel, this.config.spontaneous_channel_window_ms)) continue;
-			const lastSpeaker = this.state.getLastSpeaker(channel);
+		for (const [key] of this.state.botActivity) {
+			if (!this.state.isRecentBotActivity(key, this.config.spontaneous_channel_window_ms)) continue;
+			const lastSpeaker = this.state.getLastSpeaker(key);
 			if (lastSpeaker && lastSpeaker !== botUser.userId) {
-				eligibleChannels.push(channel);
+				const colon = key.indexOf(":");
+				eligibleChannels.push(key.slice(colon + 1));
 			}
 		}
 
@@ -216,8 +217,9 @@ export class Brain {
 				return await this.handleMessage(event, sendCommand);
 
 			case "bot_message":
-				this.state.markBotActivity(event.channel);
+				this.state.markBotActivity(event.client, event.channel);
 				this.state.recordSpeaker(
+					event.client,
 					event.channel,
 					event.client === "jade"
 						? (this.botUsers.get("jade")?.userId ?? "")
@@ -276,19 +278,20 @@ export class Brain {
 			return [{ type: "ignore", messageId: event.id }];
 		}
 
-		this.state.recordActivity(event.channel);
-		this.state.recordSpeaker(event.channel, event.user);
+		this.state.recordActivity(event.client, event.channel);
+		this.state.recordSpeaker(event.client, event.channel, event.user);
 
 		if (trigger.reason !== "mention" && trigger.reason !== "dm") {
-			this.state.markReplied(event.channel);
+			this.state.markReplied(event.client, event.channel);
 		}
 
 		if (trigger.reason === "follow-up") {
-			this.state.markFollowUp(event.channel, this.config.follow_up_window);
+			this.state.markFollowUp(event.client, event.channel, this.config.follow_up_window);
 		}
 
-		if (this.state.isSessionPaused(event.channel)) {
+		if (this.state.isSessionPaused(event.client, event.channel)) {
 			this.state.queueMessage(
+				event.client,
 				event.channel,
 				event.text,
 				event.user,
@@ -300,6 +303,7 @@ export class Brain {
 		}
 
 		this.state.checkSessionLimit(
+			event.client,
 			event.channel,
 			this.config.session_message_limit,
 			this.config.session_pause_seconds,
