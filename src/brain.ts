@@ -187,6 +187,7 @@ export class Brain {
 					hesitationWord,
 					burstPlan: burstPlan ?? undefined,
 					sessionId,
+					replyStyle: { messageReference: false, mentionRepliedUser: false },
 				};
 				this.broadcastCommand?.(cmd);
 				return;
